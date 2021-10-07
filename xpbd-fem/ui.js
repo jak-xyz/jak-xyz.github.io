@@ -6,19 +6,24 @@ const Settings_EnergyBit = 6;
 const Settings_EnergyMask = (1 << 4) - 1;
 const Settings_ShapeBit = 10;
 const Settings_ShapeMask = (1 << 4) - 1;
-const Settings_ConstraintOrderBit = 14;
+const Settings_ElementPatternBit = 14;
+const Settings_ElementPatternMask = (1 << 2) - 1;
+const Settings_ConstraintOrderBit = 16;
 const Settings_ConstraintOrderMask = (1 << 2) - 1;
-const Settings_Rotate90Degrees = (1 << 17);
-const Settings_LockLeft = (1 << 18);
-const Settings_LockRight = (1 << 19);
-const Settings_RotateLock = (1 << 20);
+const Settings_Rotate90Degrees = (1 << 19);
+const Settings_LockLeft = (1 << 20);
+const Settings_LockRight = (1 << 21);
+const Settings_RotateLock = (1 << 22);
 
 const Element_Null = 0;
 const Element_T3 = 1;
-const Element_Q4 = 2;
-const Element_Q9 = 3;
-const Element_H8 = 4;
-const Element_H27 = 5;
+const Element_T6 = 2;
+const Element_Q4 = 3;
+const Element_Q9 = 4;
+const Element_T4 = 5;
+const Element_T10 = 6;
+const Element_H8 = 7;
+const Element_H27 = 8;
 
 const Energy_Pixar = 0;
 const Energy_PixarReduced = 1;
@@ -28,6 +33,9 @@ const Energy_MixedSerial = 4;
 const Energy_MixedSub = 5;
 const Energy_YeohRubber = 6;
 const Energy_YeohSkin = 7;
+const Energy_ContinuousPixar = 8;
+const Energy_ContinuousMixed = 9;
+const Energy_ContinuousSkin = 10;
 
 const Shape_Single = 0;
 const Shape_Line = 1;
@@ -41,15 +49,19 @@ const Shape_BeamL8x1 = 8;
 const Shape_BoxL = 9;
 const Shape_BoxM = 10;
 const Shape_BoxH = 11;
+const Shape_Armadillo = 12;
+
+const Pattern_Uniform = 0;
+const Pattern_Mirrored = 1;
 
 function makeDefaultSettings(element) {
 	return {
 	timeScale: 1.0,
 	stepsPerSecond: 2500.0,
-	overRelaxation: 1.0,
 	volumePasses: 0,
 	gravity: 0.02,
 	compliance: 0.1,
+	volumeCompliance: 0.005,
 	damping: 0.0,
 	pbdDamping: 0.03,
 	drag: 0.002,
@@ -60,6 +72,7 @@ function makeDefaultSettings(element) {
 		(element << Settings_ElementTypeBit) |
 		(Energy_MixedSub << Settings_EnergyBit) |
 		(Shape_BoxL << Settings_ShapeBit) |
+		(Pattern_Uniform << Settings_ElementPatternBit) |
 		Settings_LockLeft,
 	};
 }
@@ -78,10 +91,10 @@ function updateSettings(simIdx) {
 		simIdx ? 1 : 0,
 		pushSettings.timeScale,
 		pushSettings.stepsPerSecond,
-		pushSettings.overRelaxation,
 		pushSettings.volumePasses,
 		pushSettings.gravity,
 		pushSettings.compliance,
+		pushSettings.volumeCompliance,
 		pushSettings.damping,
 		pushSettings.pbdDamping,
 		pushSettings.drag,
@@ -257,7 +270,8 @@ class RangeWithTextFieldControl {
 		this.text.value = rangeToTextValueFn(this.value);
 
 		this.formatValueForText = (value) => {
-			let str = ''+value;
+			let str = ''+parseFloat(value);
+			if (str.match('e')) { str = parseFloat(value).toFixed(20); } // No scientific notation allowed!
 			let strBuilder = [];
 			let firstSigIdx = 100000;
 			let decimalIdx = 100000;
@@ -267,6 +281,7 @@ class RangeWithTextFieldControl {
 				if (i >= decimalIdx && i > firstSigIdx + 2) { break; }
 				strBuilder.push(i < firstSigIdx + 3 ? str[i] : '0');
 			}
+			while (strBuilder.length > decimalIdx && strBuilder[strBuilder.length - 1] == '0') { strBuilder.pop(); }
 			if (strBuilder[strBuilder.length - 1] == '.') { strBuilder.pop(); }
 			return strBuilder.join('');
 		};
