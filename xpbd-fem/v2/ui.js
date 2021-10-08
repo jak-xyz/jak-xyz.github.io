@@ -61,6 +61,7 @@ function makeDefaultSettings(element) {
 	volumePasses: 0,
 	gravity: 0.02,
 	compliance: 0.1,
+	volumeCompliance: 0.005,
 	damping: 0.0,
 	pbdDamping: 0.03,
 	drag: 0.002,
@@ -77,10 +78,9 @@ function makeDefaultSettings(element) {
 }
 var settings = makeDefaultSettings(Element_Q4);
 var settings1 = makeDefaultSettings(Element_Null);
-const SettingsId = 'settings_v3';
-const settings0Json = localStorage.getItem(`${SettingsId}[0]`);
+const settings0Json = localStorage.getItem('settings[0]');
 if (settings0Json) { settings = JSON.parse(settings0Json); }
-const settings1Json = localStorage.getItem(`${SettingsId}[1]`);
+const settings1Json = localStorage.getItem('settings[1]');
 if (settings1Json) { settings1 = JSON.parse(settings1Json); }
 var links = [];
 
@@ -94,6 +94,7 @@ function updateSettings(simIdx) {
 		pushSettings.volumePasses,
 		pushSettings.gravity,
 		pushSettings.compliance,
+		pushSettings.volumeCompliance,
 		pushSettings.damping,
 		pushSettings.pbdDamping,
 		pushSettings.drag,
@@ -102,7 +103,7 @@ function updateSettings(simIdx) {
 		pushSettings.leftRightSeparation,
 		pushSettings.flags
 	);
-	window.localStorage.setItem(`${SettingsId}[${simIdx}]`, JSON.stringify(pushSettings));
+	window.localStorage.setItem(`settings[${simIdx}]`, JSON.stringify(pushSettings));
 }
 
 function resetBlocks() {
