@@ -3,22 +3,17 @@ const Settings_ElementTypeMask = (1 << 4) - 1;
 const Settings_ConstructBlockFromSettings = (1 << 4);
 const Settings_ForceResetBlock = (1 << 5);
 const Settings_EnergyBit = 6;
-const Settings_EnergyMask = (1 << 5) - 1;
-const Settings_XpbdSolveBit = 11;
-const Settings_XpbdSolveMask = 1;
-const Settings_ShapeBit = 12;
+const Settings_EnergyMask = (1 << 4) - 1;
+const Settings_ShapeBit = 10;
 const Settings_ShapeMask = (1 << 4) - 1;
-const Settings_ElementPatternBit = 16;
+const Settings_ElementPatternBit = 14;
 const Settings_ElementPatternMask = (1 << 2) - 1;
-const Settings_ConstraintOrderBit = 18;
+const Settings_ConstraintOrderBit = 16;
 const Settings_ConstraintOrderMask = (1 << 2) - 1;
-const Settings_RayleighTypeBit = 20;
-const Settings_RayleighTypeMask = (1 << 2) - 1;
-const Settings_Rotate90Degrees = (1 << 24);
-const Settings_Centered = (1 << 25);
-const Settings_LockLeft = (1 << 26);
-const Settings_LockRight = (1 << 27);
-const Settings_RotateLock = (1 << 28);
+const Settings_Rotate90Degrees = (1 << 19);
+const Settings_LockLeft = (1 << 20);
+const Settings_LockRight = (1 << 21);
+const Settings_RotateLock = (1 << 22);
 
 const Element_Null = 0;
 const Element_T3 = 1;
@@ -34,15 +29,13 @@ const Energy_Pixar = 0;
 const Energy_PixarReduced = 1;
 const Energy_PixarSel = 2;
 const Energy_Mixed = 3;
-const Energy_MixedSel = 4;
-const Energy_YeohSkin = 5;
-const Energy_YeohSkinSel = 6;
-const Energy_YeohSkinFast = 7;
+const Energy_MixedSerial = 4;
+const Energy_MixedSub = 5;
+const Energy_YeohRubber = 6;
+const Energy_YeohSkin = 7;
 const Energy_ContinuousPixar = 8;
 const Energy_ContinuousMixed = 9;
 const Energy_ContinuousSkin = 10;
-const Energy_CubeNeo = 11;
-const Energy_CubeSkin = 12;
 
 const Shape_Single = 0;
 const Shape_Line = 1;
@@ -61,19 +54,14 @@ const Shape_Armadillo = 12;
 const Pattern_Uniform = 0;
 const Pattern_Mirrored = 1;
 
-const Rayleigh_Paper = 0;
-const Rayleigh_Limit = 1;
-const Rayleigh_Post = 2;
-const Rayleigh_PostAmortized = 3;
-
 function makeDefaultSettings(element) {
 	return {
 	timeScale: 1.0,
-	stepsPerSecond: 3000.0,
+	stepsPerSecond: 2500.0,
 	volumePasses: 0,
-	gravity: 0.05,
-	compliance: 1.0,
-	damping: 0.005,
+	gravity: 0.02,
+	compliance: 0.1,
+	damping: 0.0,
 	pbdDamping: 0.03,
 	drag: 0.002,
 	poissonsRatio: 0.495,
@@ -81,17 +69,15 @@ function makeDefaultSettings(element) {
 	wonkiness: 0.0,
 	flags: Settings_ConstructBlockFromSettings |
 		(element << Settings_ElementTypeBit) |
-		(Energy_MixedSel << Settings_EnergyBit) |
-		(1 << Settings_XpbdSolveBit) |
+		(Energy_MixedSub << Settings_EnergyBit) |
 		(Shape_BoxL << Settings_ShapeBit) |
 		(Pattern_Uniform << Settings_ElementPatternBit) |
-		(Rayleigh_PostAmortized << Settings_RayleighTypeBit) |
 		Settings_LockLeft,
 	};
 }
 var settings = makeDefaultSettings(Element_Q4);
 var settings1 = makeDefaultSettings(Element_Null);
-const SettingsId = 'settings_v4';
+const SettingsId = 'settings_v3';
 const settings0Json = localStorage.getItem(`${SettingsId}[0]`);
 if (settings0Json) { settings = JSON.parse(settings0Json); }
 const settings1Json = localStorage.getItem(`${SettingsId}[1]`);
@@ -136,8 +122,8 @@ function resetSettings() {
 }
 
 function toggleAllLinks() {
-	let target = !links[3].linkCheckbox.checked;
-	for (let i = 3; i < links.length; i++) {
+	let target = !links[2].linkCheckbox.checked;
+	for (let i = 2; i < links.length; i++) {
 		links[i].linkCheckbox.checked = target;
 		links[i].linkCheckbox.dispatchEvent(new Event('change'));
 	}
