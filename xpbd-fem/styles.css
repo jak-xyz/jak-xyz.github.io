@@ -1,5 +1,12 @@
 html { box-sizing: border-box; }
 *, *:before, *:after { box-sizing: inherit; }
+body { -webkit-font-smoothing: antialiased; }
+input, button, textarea, select { font: inherit; }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
 
 body {
   height: 100%;
@@ -7,15 +14,15 @@ body {
   margin: 0;
   background: #fff;
   color: #000;
-  font-family: "IBM Plex Sans","Helvetica Neue",Arial,sans-serif !important;
+  font-family: Arial,sans-serif !important;
   -webkit-text-size-adjust: 100%;
 }
 @media screen and (min-width: 657px) {
-  html { font-size: 16px; }
+  html, select { font-size: 16px; }
   button { font-size: 13px; }
 }
 @media screen and (max-width: 656px) {
-  html { font-size: 2.43902439vw; }
+  html, select { font-size: 2.43902439vw; }
   button { font-size: 1.98170731vw; }
 }
 
@@ -40,11 +47,11 @@ canvas {
 #topbar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 0.0rem 0.5rem;
 }
 
 .topbar-entry {
-  width: 13rem;
 }
 
 #text-toggle {
@@ -87,6 +94,13 @@ b {
   align-items: center;
   width: 100%;
 }
+#Element\ Type\:-input-area.control-input-area label {
+  letter-spacing: -0.06rem;
+  margin: 0 0.15rem;
+}
+#Element\ Type\:-input-area.control-input-area input {
+  margin-left: 0.175rem;
+}
 
 .control-input-linked {
   opacity: 0.333;
@@ -98,8 +112,7 @@ b {
   width: 100%;
   margin: 0.25rem 0;
 }
-
-.control-input-bag-row, .control-input-slider {
+.control-input-bag-row, .control-input-dropdown, .control-input-slider {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -107,6 +120,13 @@ b {
 }
 .control-input-bag-row {
   flex-wrap: wrap;
+}
+.control-input-dropdown {
+  z-index: 1;
+  align-items: flex-start;
+  margin: 0.25rem 0;
+}
+.control-input-button {
 }
 
 .control-input-bag-contents {
@@ -119,6 +139,15 @@ b {
   width: 0.875rem;
   height: 0.875rem;
   margin: 0 0 0 0.25rem;
+}
+
+.control-select {
+  width: 10em;
+  position: relative;
+  overflow: hidden;
+  scrollbar-width: none;
+}
+.control-option {
 }
 
 .control-range {

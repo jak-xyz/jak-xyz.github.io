@@ -3,32 +3,38 @@ const Settings_ElementTypeMask = (1 << 4) - 1;
 const Settings_ConstructBlockFromSettings = (1 << 4);
 const Settings_ForceResetBlock = (1 << 5);
 const Settings_EnergyBit = 6;
-const Settings_EnergyMask = (1 << 5) - 1;
-const Settings_XpbdSolveBit = 11;
-const Settings_XpbdSolveMask = 1;
+const Settings_EnergyMask = (1 << 4) - 1;
+const Settings_SolveBit = 10;
+const Settings_SolveMask = (1 << 2) - 1;
 const Settings_ShapeBit = 12;
 const Settings_ShapeMask = (1 << 4) - 1;
 const Settings_ElementPatternBit = 16;
-const Settings_ElementPatternMask = (1 << 2) - 1;
-const Settings_ConstraintOrderBit = 18;
+const Settings_ElementPatternMask = (1 << 1) - 1;
+const Settings_ConstraintOrderBit = 17;
 const Settings_ConstraintOrderMask = (1 << 2) - 1;
-const Settings_RayleighTypeBit = 20;
+const Settings_RayleighTypeBit = 19;
 const Settings_RayleighTypeMask = (1 << 2) - 1;
-const Settings_Rotate90Degrees = (1 << 24);
-const Settings_Centered = (1 << 25);
-const Settings_LockLeft = (1 << 26);
-const Settings_LockRight = (1 << 27);
-const Settings_RotateLock = (1 << 28);
+const Settings_Rotate90Degrees = (1 << 21);
+const Settings_Centered = (1 << 22);
+const Settings_LockLeft = (1 << 23);
+const Settings_LockRight = (1 << 24);
+const Settings_RotateLock = (1 << 25);
+const Settings_QuadratureOrderBit = 26;
+const Settings_QuadratureOrderMask = (1 << 2) - 1;
+const Settings_CalcVisBit = 28;
+const Settings_CalcVisMask = (1 << 1) - 1;
 
 const Element_Null = 0;
 const Element_T3 = 1;
 const Element_T6 = 2;
 const Element_Q4 = 3;
-const Element_Q9 = 4;
-const Element_T4 = 5;
-const Element_T10 = 6;
-const Element_H8 = 7;
-const Element_H27 = 8;
+const Element_Q8 = 4;
+const Element_Q9 = 5;
+const Element_T4 = 6;
+const Element_T10 = 7;
+const Element_H8 = 8;
+const Element_H20 = 9;
+const Element_H27 = 10;
 
 const Energy_Pixar = 0;
 const Energy_PixarReduced = 1;
@@ -43,6 +49,11 @@ const Energy_ContinuousMixed = 9;
 const Energy_ContinuousSkin = 10;
 const Energy_CubeNeo = 11;
 const Energy_CubeSkin = 12;
+
+const Solve_Serial = 0;
+const Solve_Simultaneous = 1;
+const Solve_DeviatoricOnly = 2;
+const Solve_VolumetricOnly = 3;
 
 const Shape_Single = 0;
 const Shape_Line = 1;
@@ -66,6 +77,9 @@ const Rayleigh_Limit = 1;
 const Rayleigh_Post = 2;
 const Rayleigh_PostAmortized = 3;
 
+const CalcVis_Invariants = 0;
+const CalcVis_NTN = 1;
+
 function makeDefaultSettings(element) {
 	return {
 	timeScale: 1.0,
@@ -82,25 +96,27 @@ function makeDefaultSettings(element) {
 	flags: Settings_ConstructBlockFromSettings |
 		(element << Settings_ElementTypeBit) |
 		(Energy_MixedSel << Settings_EnergyBit) |
-		(1 << Settings_XpbdSolveBit) |
+		(Solve_Simultaneous << Settings_SolveBit) |
 		(Shape_BoxL << Settings_ShapeBit) |
 		(Pattern_Uniform << Settings_ElementPatternBit) |
 		(Rayleigh_PostAmortized << Settings_RayleighTypeBit) |
+		(2 << Settings_QuadratureOrderBit) |
 		Settings_LockLeft,
 	};
 }
-var settings = makeDefaultSettings(Element_Q4);
-var settings1 = makeDefaultSettings(Element_Null);
-const SettingsId = 'settings_v4';
-const settings0Json = localStorage.getItem(`${SettingsId}[0]`);
-if (settings0Json) { settings = JSON.parse(settings0Json); }
-const settings1Json = localStorage.getItem(`${SettingsId}[1]`);
-if (settings1Json) { settings1 = JSON.parse(settings1Json); }
-var links = [];
+var settings = [makeDefaultSettings(Element_Q4), makeDefaultSettings(Element_Null)];
+const SettingsId = 'settings_v5';
+for (let i = 0; i < 2; i++) {
+	const settingsJson = localStorage.getItem(`${SettingsId}[${i}]`);
+	if (settingsJson) {
+		settings[i] = JSON.parse(settingsJson);
+		settings[i].flags &= ~Settings_ForceResetBlock;
+	}
+}
 
 function updateSettings(simIdx) {
 	simIdx = simIdx ? 1 : 0;
-	let pushSettings = simIdx ? settings1 : settings;
+	let pushSettings = settings[simIdx];
 	rpc('UpdateSettings',
 		simIdx ? 1 : 0,
 		pushSettings.timeScale,
@@ -120,21 +136,41 @@ function updateSettings(simIdx) {
 }
 
 function resetBlocks() {
-	settings.flags |= Settings_ForceResetBlock;
-	settings1.flags |= Settings_ForceResetBlock;
+	settings[0].flags |= Settings_ForceResetBlock;
+	settings[1].flags |= Settings_ForceResetBlock;
 	updateSettings(0);
 	updateSettings(1);
-	settings.flags &= ~Settings_ForceResetBlock;
-	settings1.flags &= ~Settings_ForceResetBlock;
+	settings[0].flags &= ~Settings_ForceResetBlock;
+	settings[1].flags &= ~Settings_ForceResetBlock;
 }
 function resetSettings() {
-	settings = makeDefaultSettings(Element_Q4);
-	settings1 = makeDefaultSettings(Element_Null);
+	settings[0] = makeDefaultSettings(Element_Q4);
+	settings[1] = makeDefaultSettings(Element_Null);
 	resetBlocks();
 	location.reload();
 	return false;
 }
 
+const Demo_Sim = 1 << 0;
+const Demo_Step = 1 << 1;
+const Demo_Explore = 1 << 2;
+var controls = [];
+function setDemoMode(demoMode) {
+	if (demoMode == Demo_Sim) { document.getElementById('mode-sim').checked = true; }
+	if (demoMode == Demo_Step) { document.getElementById('mode-step').checked = true; }
+	if (demoMode == Demo_Explore) { document.getElementById('mode-exp').checked = true; }
+	let showRightSide = demoMode == Demo_Sim;
+	for (let i = 0; i < controls.length; i++) {
+		controls[i].control.style.display = (controls[i].demoMode & demoMode) ? 'flex' : 'none';
+		let inputArea = controls[i].control.querySelector('.control-input-area');
+		for (let j = 1; j < inputArea.childNodes.length; j++) {
+			inputArea.childNodes[j].style.visibility = showRightSide ? 'visible' : 'hidden';
+		}
+	}
+	rpc('SetDemoMode', demoMode);
+}
+
+var links = [];
 function toggleAllLinks() {
 	let target = !links[3].linkCheckbox.checked;
 	for (let i = 3; i < links.length; i++) {
@@ -265,6 +301,80 @@ class RadioButtonsControl {
 	}
 }
 
+class DropdownControl {
+	constructor(parentElement, flagBit, flagMask, name, options) {
+		this.flagBit = flagBit;
+		this.flagMask = flagMask;
+		this.onchange = null;
+
+		this.rootElement = addElement(parentElement, 'div', 'control-input-dropdown');
+		let labelNode = addLabel(this.rootElement, 'control-input-dropdown', '');
+		this.selectNode = addElement(labelNode, 'select', 'control-select');
+		this.selectNode.name = name;
+		let yOffset = 0;
+		let keepOnScreen = () => {
+			if (this.selectNode.size > 1) {
+				let brect = this.selectNode.getBoundingClientRect();
+				yOffset = Math.min(0, yOffset + window.innerHeight - brect.bottom);
+				this.selectNode.style.top = yOffset+'px';
+			}
+		};
+		let delayTimer = null;
+		this.selectNode.onmouseover = function() {
+			if (!delayTimer) {
+				let self = this;
+				delayTimer = window.setTimeout(()=>{
+					self.size = options.length;
+					keepOnScreen();
+					delayTimer = null;
+				}, 33);
+			}
+		}
+		window.addEventListener("scroll", keepOnScreen);
+		this.selectNode.onmouseleave = function() {
+			if (delayTimer) {
+				window.clearTimeout(delayTimer);
+				delayTimer = null;
+			}
+			this.size = 1;
+			yOffset = 0;
+			this.style.top = yOffset+'px';
+		}
+		for (let i = 0; i < options.length; i++) {
+			let option = options[i];
+			let optionNode = addElement(this.selectNode, 'option', 'control-option');
+			optionNode.value = ''+i;
+			optionNode.innerHTML = option;
+		}
+		this.selectNode.addEventListener('change', () => {
+			if (this.onchange) { this.onchange(this.selectNode.value); }
+		});
+		// This allows the select node to appear centered in the control row while
+		// still expanding downward, as expected
+		let rect = this.selectNode.getBoundingClientRect();
+		labelNode.style.height = rect.height+'px';
+	}
+	storeState() {
+		return this.selectNode.value;
+	}
+	loadState(state) {
+		this.selectNode.value = state;
+	}
+	storeToSettings(settings) {
+		let setting = (settings.flags >> this.flagBit) & this.flagMask;
+		let changed = this.selectNode.value != setting;
+		settings.flags &= ~(this.flagMask << this.flagBit);
+		settings.flags |= this.selectNode.value << this.flagBit;
+		return changed;
+	}
+	loadFromSettings(settings) {
+		let setting = (settings.flags >> this.flagBit) & this.flagMask;
+		let changed = this.selectNode.value != setting;
+		this.selectNode.value = setting;
+		return changed;
+	}
+}
+
 class RangeWithTextFieldControl {
 	constructor(parentElement, setting, min, max, step, rangeToTextValueFn) {
 		this.setting = setting;
@@ -348,15 +458,34 @@ class RangeWithTextFieldControl {
 	}
 }
 
-function addControl(parentElement, label, createControlFn) {
+class ButtonsControl {
+	constructor(parentElement, buttonLabel, onclick) {
+		this.onchange = null;
+
+		this.rootElement = addElement(parentElement, 'div', 'control-input-bag');
+		let row = addElement(this.rootElement, 'div', 'control-input-bag-row');
+		let buttonLabelNode = addLabel(row, 'control-input-button', '');
+		let buttonNode = addInput(buttonLabelNode, 'control-input-button', 'button');
+		buttonNode.value = buttonLabel;
+		buttonNode.addEventListener('click', () => { onclick(); });
+	}
+	storeState() { return 0; }
+	loadState(state) {}
+	storeToSettings(settings) { return false; }
+	loadFromSettings(settings) { return false; }
+}
+
+function addControl(parentElement, demoMode, label, createControlFn) {
 	let row = addElement(parentElement, 'div', 'control-row');
+	controls.push({control: row, demoMode});
 	let labelNode = addElement(row, 'div', 'control-label');
 	labelNode.innerHTML = label;
 
 	let inputArea = addElement(row, 'div', 'control-input-area');
+	inputArea.id = label+'-input-area';
 
 	let ctrl0 = createControlFn(inputArea, 0);
-	ctrl0.loadFromSettings(settings);
+	ctrl0.loadFromSettings(settings[0]);
 
 	let link = addElement(inputArea, 'div', 'control-link');
 	let linkLabel = addLabel(link, 'link-toggle', '');
@@ -365,23 +494,23 @@ function addControl(parentElement, label, createControlFn) {
 	links.push({linkCheckbox, label}); // Hackily push the link into the global link list
 
 	let ctrl1 = createControlFn(inputArea, 1);
-	ctrl1.loadFromSettings(settings1);
+	ctrl1.loadFromSettings(settings[1]);
 
 	let undoState = null;
 
 	ctrl0.onchange = (value) => {
-		let changed = ctrl0.storeToSettings(settings);
+		let changed = ctrl0.storeToSettings(settings[0]);
 		if (changed) { updateSettings(0); console.log(0, label, ctrl0.storeState()); }
 		if (linkCheckbox.checked) {
 			ctrl1.loadState(ctrl0.storeState());
 			undoState = ctrl1.storeState();
-			let changed1 = ctrl1.storeToSettings(settings1);
+			let changed1 = ctrl1.storeToSettings(settings[1]);
 			if (changed1) { updateSettings(1); console.log(1, label, ctrl1.storeState()); }
 		}
 	};
 	ctrl1.onchange = (value) => {
 		undoState = ctrl1.storeState();
-		let changed = ctrl1.storeToSettings(settings1);
+		let changed = ctrl1.storeToSettings(settings[1]);
 		if (changed) { updateSettings(1); console.log(1, label, ctrl1.storeState()); }
 		// Disable the link
 		linkCheckbox.checked = false;
@@ -397,55 +526,49 @@ function addControl(parentElement, label, createControlFn) {
 			ctrl1.rootElement.classList.remove('control-input-linked');
 			if (undoState) { ctrl1.loadState(undoState); }
 		}
-		let changed1 = ctrl1.storeToSettings(settings1);
+		let changed1 = ctrl1.storeToSettings(settings[1]);
 		if (changed1) { updateSettings(1); console.log(1, label, 'link', ctrl1.storeState()); }
 	});
 }
 
-function addCheckbox(parentElement, label, flags, checkboxLabels) {
-	addControl(parentElement, label, (parent, side) => {
+function addCheckbox(parentElement, demoMode, label, flags, checkboxLabels) {
+	addControl(parentElement, demoMode, label, (parent, side) => {
 		return new CheckboxControl(parent, flags, checkboxLabels);
 	});
 }
 
-function addRadioButtons(parentElement, label, flagBit, flagMask, buttonLabels) {
-	addControl(parentElement, label, (parent, side) => {
+function addRadioButtons(parentElement, demoMode, label, flagBit, flagMask, buttonLabels) {
+	addControl(parentElement, demoMode, label, (parent, side) => {
 		return new RadioButtonsControl(parent, flagBit, flagMask, label+side, buttonLabels);
 	});
 }
 
-function addRangeWithTextField(parentElement, label, setting, min, max, step, rangeToTextValueFn) {
-	addControl(parentElement, label, (parent, side) => {
+function addDropdown(parentElement, demoMode, label, flagBit, flagMask, optionLabels) {
+	addControl(parentElement, demoMode, label, (parent, side) => {
+		return new DropdownControl(parent, flagBit, flagMask, label+side, optionLabels);
+	});
+}
+
+function addRangeWithTextField(parentElement, demoMode, label, setting, min, max, step, rangeToTextValueFn) {
+	addControl(parentElement, demoMode, label, (parent, side) => {
 		return new RangeWithTextFieldControl(parent, setting, min, max, step, rangeToTextValueFn);
 	});
 }
 
+function addButton(parentElement, demoMode, label, buttonLabel, onclick) {
+	let buttons = [];
+	let linkBox = {};
+	addControl(parentElement, demoMode, label, (parent, side) => {
+		buttons[side] = new ButtonsControl(parent, buttonLabel, () => {
+			onclick(side);
+			if (side == 0 && linkBox.link.checked) { onclick(1); }
+		});
+		return buttons[side];
+	});
+	linkBox.link = links[links.length - 1].linkCheckbox;
+}
+
 document.addEventListener('DOMContentLoaded', function(event) {
-	// Gather all the slide dom elements
-	// slidesChildren = document.getElementById('slides').childNodes;
-	// for (let i = 0; i < slidesChildren.length; i++) {
-	// 	if (slidesChildren[i].className == 'slide') {
-	// 		slides.push(slidesChildren[i]);
-	// 	}
-	// }
-
-	// // Add table of contents entries for all the slides
-	// let toc = document.getElementById('toc');
-	// function addTocEntry(label, onclick) {
-	// 	let span = document.createElement('span');
-	// 	let text = document.createTextNode(label);
-	// 	span.appendChild(text);
-	// 	toc.appendChild(span);
-	// 	span.className = 'toc-entry';
-	// 	span.addEventListener('click', onclick);
-	// }
-	// addTocEntry('<', () => gotoSlide(currentSlide - 1));
-	// for (let i = 0; i < slides.length; i++) {
-	// 	addTocEntry(''+(i + 1), ((idx) => () => gotoSlide(idx))(i));
-	// }
-	// addTocEntry('>', () => gotoSlide(currentSlide + 1));
-
-	// Support navigating through slides with the keyboard
 	document.addEventListener('keydown', function(event) {
 		// We never want to look at input if the user is typing in a text box
 		if (document.activeElement.tagName.toLowerCase() == 'input' &&
@@ -453,24 +576,17 @@ document.addEventListener('DOMContentLoaded', function(event) {
 
 		if (event.key.toUpperCase() == 'R') {
 			resetBlocks();
+			rpc('ResetExplorer');
 		}
 		if (event.key.toUpperCase() == 'L') {
 			toggleAllLinks();
 		}
+		if (event.key.toUpperCase() == 'S') {
+			rpc('StepExplorer', 0);
+			//rpc('StepExplorer', 1);
+		}
 
 		// Furthermore, certain inputs we don't want to look at if the user has anything selected
 		if (document.activeElement != document.body) { return; }
-
-		// if (event.key == 'ArrowLeft' || event.key == 'ArrowRight') {
-		// 	if (event.key == 'ArrowLeft') {
-		// 		gotoSlide(currentSlide - 1);
-		// 	} else if (event.key == 'ArrowRight') {
-		// 		gotoSlide(currentSlide + 1);
-		// 	}
-		// 	event.preventDefault();
-		// }
 	}, true);
-
-	//
-	// gotoSlide(0);
 });

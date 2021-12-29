@@ -26,10 +26,24 @@
     </div>
     <div id="topbar">
         <div class="topbar-entry" style="text-align: left">
-            <button type="button" onclick="return resetBlocks();">(R)eset</button>
+            <button type="button" onclick="rpc('ResetExplorer'); return resetBlocks();">(R)eset</button>
             <button type="button" onclick="return toggleAllLinks();">Toggle (L)inks</button>
         </div>
         <div class="topbar-entry" style="text-align: center">
+            <form class="control-input-bag-row">
+                Mode:&ensp;
+                <label for="mode-sim" class="control-input-bag-contents">
+                    Sim<input type="radio" id="mode-sim" name="mode" value="1" onchange="setDemoMode(Demo_Sim);">
+                </label>
+                <label for="mode-step" class="control-input-bag-contents">
+                    Step<input type="radio" id="mode-step" name="mode" value="2" onchange="setDemoMode(Demo_Step);">
+                </label>
+                <label for="mode-exp" class="control-input-bag-contents">
+                    Explore<input type="radio" id="mode-exp" name="mode" value="4" onchange="setDemoMode(Demo_Explore);">
+                </label>
+            </form>
+        </div>
+        <div class="topbar-entry" style="text-align: right">
             <span id="text-toggle" onclick="return toggleExplainerText();">Show explainer text</span>
             <script>
                 function toggleExplainerText() {
@@ -45,25 +59,28 @@
                 }
             </script>
         </div>
-        <div class="topbar-entry" style="text-align: right">
-            <button type="button" onclick="return resetSettings();">Reset Settings</button>
-        </div>
     </div>
     <div id="explainer-text">
         <p>
-        This web page demonstrates the finite element method (FEM) implemented with small step XPBD (<a href="http://mmacklin.com/smallsteps.pdf">paper</a>). The jumping off point for this implementation was Position-Based Simulation of Continuous Materials (<a href="http://interactive-graphics.de/index.php/research/37-position-based-simulation-of-continuous-materials">paper</a>), which suggests directly constraining non-linear hyperelastic potential energy functions. I've extended it to support more advanced element types than just triangles and tetrahedra and I've experimented with mixed method constraints, as well. Recently, A Constraint-based Formulation of Stable Neo-Hookean Materials (<a href="https://mmacklin.com/neohookean.pdf">paper</a>) was published, which shows how to more precisely implement energy constraints with XPBD, and I have incorporated those suggestions. You can click/drag on the elements in the viewport above to move them around, as well as tweak many aspects of the simulation with controls down below (people on smaller screens may want to zoom out a little). 
+        This web page demonstrates the finite element method (FEM) implemented with small step XPBD (<a href="http://mmacklin.com/smallsteps.pdf">paper</a>). The jumping off point for this implementation was Position-Based Simulation of Continuous Materials (<a href="http://interactive-graphics.de/index.php/research/37-position-based-simulation-of-continuous-materials">paper</a>), which suggests directly constraining non-linear hyperelastic potential energy functions. I've extended it to support more advanced element types than just triangles and tetrahedra and I've experimented with mixed method constraints, as well. Recently, A Constraint-based Formulation of Stable Neo-Hookean Materials (<a href="https://mmacklin.com/neohookean.pdf">paper</a>) was published, which shows how to more precisely implement energy constraints with XPBD, and I have incorporated those suggestions.
         </p>
-        <h4>
-        Notes on the controls:
-        </h4>
         <p>
-        You can enable a second instance of the simulation by selecting a non-null element type in the right hand column, which should make it easy to compare and contrast different settings. The column of buttons between the two sets of controls are link toggles. When the link is turned on, the corresponding right-hand control will dim and take on the value of the left hand control. Press 'L' to toggle most of the links at once. If the simulation ever becomes catastrophically unstable, 'R' will reset it.
+        You can select one of 3 demo <b>Mode</b>s directly below the viewport. <b>Sim</b> allows you to play with various 2D and 3D FEM meshes. You can click/drag on the elements in the viewport above to move them around, as well as tweak many aspects of the simulation with controls down below. <b>Step</b> zooms in to a single (2D) element, and allows you to single-step through the simulation. <b>Explore</b> attempts to visualize calculations that go into running the FEM simulation. Probably too obtuse to be of use to anyone in its current state, but it might eventually serve as the backdrop to a video presentation I'm thinking about making.
+        </p>
+        Detailed notes on the 3 modes follow.
+        <p>
+        </p>
+        <h3>
+        Notes on Sim controls:
+        </h3>
+        <p>
+        You can enable a second instance of the simulation by selecting a non-null element type in the right hand column, which should make it easy to compare and contrast different settings. The column of buttons between the two sets of controls are link toggles. When the link is turned on, the corresponding right-hand control will dim and take on the value of the left hand control. Press 'L' to toggle most of the links at once. If the simulation ever becomes catastrophically unstable, 'R' will reset it. To restore factory defaults, press this button: <button type="button" onclick="return resetSettings();">Reset Settings</button>.
         </p>
         <h4>
         Control descriptions:
         </h4>
         <p>
-        <b>Element Type:</b> The type of the individual finite elements. All shapes other than T3 and T4 are non-linear, which is an issue for many other integration methods, but is no sweat for XPBD. T6, T10, Q9 and H27 are higher order quadratic elements (and therefore <i>especially non-linear</i>).
+        <b>Element Type:</b> The type of the individual finite elements. All shapes other than T3 and T4 are non-linear, which is an issue for many other integration methods, but is no sweat for XPBD. T6, T10, Q8, Q9. H20 and H27 are higher order quadratic elements (and therefore <i>especially non-linear</i>).
         </p>
         <p>
         Unbalanced configurations of the tetrahedral elements (T4 and T10) experience significant non-physical ghost forces. This is especially obvious if you set the Shape to "Line", the Tri/Tet Pattern to "Uniform" and set all forms of drag and damping to 0. Switching the Tri/Tet Pattern to "Mirrored" and then choosing a balanced Shape like "Beam M" should eliminate most of the chaotic movement.
@@ -113,7 +130,7 @@
         </div>
         </p>
         <p>
-        <b>Mixed XPBD:</b> Choose between Serial and Simultaneous solvers for the Mixed, MSel, Yeoh, YSel and YFast Energy Functions. Simultaneous means the deviatoric and volumetric constraints are solved simultaneously with the matrix form of XPBD, though the individual elements are still solved serially in a Gauss-Seidel fashion. The Simultaneous solver seems to be able to hold its shape better at low Steps/Second and also accommodates higher levels of Rayleigh damping.
+        <b>Solve:</b> The first two options select between Serial and Simultaneous solvers for the Mixed, MSel, Yeoh, YSel and YFast Energy Functions. Simultaneous means the deviatoric and volumetric constraints are solved simultaneously with the matrix form of XPBD, though the individual elements are still solved serially in a Gauss-Seidel fashion. The Simultaneous solver seems to be able to hold its shape better at low Steps/Second and also accommodates higher levels of Rayleigh damping. The DevOnly and VolOnly options exist for demonstration purposes and run either the deviatoric or volumetric constraints in isolation.
         </p>
         <p>
         <b>Shape:</b> The shape of the aggregate FEM block. I've done most of my testing using Beam L, Box L and Armadillo. Armadillo loads the Stanford Armadillo mesh or something like it. I was unable to get an automatic mesher to work for hex meshes, so for H8/H27 you get my hand made Armadillo-Bear.
@@ -177,6 +194,27 @@
         <p>
         <b>Tri/Tet Pattern:</b> The pattern of the orientations of tri and tet elements. "Uniform" most closely resembles the distribution you'd get in a generated mesh, and also unfortunately has serious locking problems for first order elements. "Mirrored" is mainly thrown in out of interest, as it significantly reduces locking, though it has subtle artifacts of its own.
         </p>
+
+        <h3>
+        Notes on Step controls:
+        </h3>
+        <p>
+        Presents 3 elements: Reference, Map and Current. Reference displays the canonical reference element and can't be interacted with. Map represents the rest state of the element. Current shows the current state as well as the state after one time step. The (S)tep button (or pressing the 'S' key) advances the simulation one time step.
+        </p>
+        <p>
+        Probably most useful for exploring how one step of XPBD behaves at its limits. For Poisson's Ratios very close to 0.5, shows how much the volumetric constraint dominates. Viewing the deviatoric constraint pretty much requires selecting the DevOnly Solve mode and massively decreasing Steps/Second and Compliance. Also useful for comparing the Orig and Lim Rayleigh Types (since this single step mode doesn't track velocity, Vel and Amor do nothing).
+        </p>
+
+        <h3>
+        Notes on Explore controls:
+        </h3>
+        <p>
+        This mode is a work in progress.
+        </p>
+        <p>
+        Presents the same 3 elements as the previous mode (canonical, map and current), but exposes the metaphorical electrons, protons and neutrons of the FEM element. Most everything can be clicked on to either provide a brief explanation of what it is, or reveal a realtime updating equation showing how the value is calculated. I expect it's too much of an information-overload to be useful in its current state, but perhaps someone working their way through Zienkiewicz et al. could find it useful.
+        </p>
+
         <p id="text-toggle" style="margin: 0px auto; text-align: center; font-size: 1rem;" onclick="return toggleExplainerText();">Hide explainer text</p>
     </div>
     <div id="controls">
@@ -189,53 +227,70 @@
                 // }
                 resetBlocks();
 
-                addRadioButtons(parentElement, 'Element Type:', Settings_ElementTypeBit, Settings_ElementTypeMask,
-                    [['∅', 'T3', 'T6', 'Q4', 'Q9'], ['T4', 'T10', 'H8', 'H27']]);
-                addRadioButtons(parentElement, 'Energy Function:', Settings_EnergyBit, Settings_EnergyMask,
-                    [['Pixar', '<span style="color:#910">Reduced</span>', 'PSel'], ['Mixed', 'MSel'], ['Yeoh', 'YSel', 'YFast'], ['VPix', 'VMix', 'VSkin'], ['CubeNeo', 'CubeSkin']]);
-                addRadioButtons(parentElement, 'Mixed XPBD:', Settings_XpbdSolveBit, Settings_XpbdSolveMask,
-                    [['Serial', 'Simultaneous']]);
-                addRadioButtons(parentElement, 'Shape:', Settings_ShapeBit, Settings_ShapeMask,
-                    [['Single', 'Line'], ['Beam L', 'M', 'H'], ['2x1', '1x2', '4x1', '8x1'], ['Box L', 'M', 'H'], ['Armadillo']]);
+                const S = Demo_Sim;
+                const T = Demo_Step;
+                const E = Demo_Explore;
 
-                addRangeWithTextField(parentElement, 'Steps/Second:', 'stepsPerSecond', 0, 100, 0,
+                addRadioButtons(parentElement, S|T|E, 'Element Type:', Settings_ElementTypeBit, Settings_ElementTypeMask,
+                    [['∅', 'T3', 'T6', 'Q4', 'Q8', 'Q9'], ['T4', 'T10', 'H8', 'H20', 'H27']]);
+
+                addRadioButtons(parentElement, E, 'Quadrature #:', Settings_QuadratureOrderBit, Settings_QuadratureOrderMask,
+                    [['1', '2', '3']]);
+                addRadioButtons(parentElement, E, 'Calc Vis:', Settings_CalcVisBit, Settings_CalcVisMask,
+                    [['Invariants', 'N<span style="position: relative; font-size: smaller; top: -0.25em">T</span>N']]);
+
+                addRadioButtons(parentElement, S|T, 'Energy Function:', Settings_EnergyBit, Settings_EnergyMask,
+                    [['Pixar', '<span style="color:#910">Reduced</span>', 'PSel'], ['Mixed', 'MSel'], ['Yeoh', 'YSel', 'YFast'], ['VPix', 'VMix', 'VSkin'], ['CubeNeo', 'CubeSkin']]);
+                addRadioButtons(parentElement, S|T, 'Solve:', Settings_SolveBit, Settings_SolveMask,
+                    [['Serial', 'Simultaneous'], ['DevOnly', 'VolOnly']]);
+                addDropdown(parentElement, S, 'Shape:', Settings_ShapeBit, Settings_ShapeMask,
+                    ['Single', 'Line', 'Beam Low', 'Beam Medium', 'Beam High', 'Beam 2x1', 'Beam 1x2', 'Beam 4x1', 'Beam 8x1', 'Box Low', 'Box Medium', 'Box High', 'Armadillo']);
+
+                addRangeWithTextField(parentElement, S|T, 'Steps/Second:', 'stepsPerSecond', 0, 100, 0,
                     (value) => (200.0 * 10 ** (2.0 * value / 100)));
-                addRangeWithTextField(parentElement, 'Gravity:', 'gravity', 0, 100, 0,
+                addRangeWithTextField(parentElement, S, 'Gravity:', 'gravity', 0, 100, 0,
                     (value) => (10.0 * (value / 100) ** 2));
-                addRangeWithTextField(parentElement, 'Compliance:', 'compliance', 0, 100, 0,
+                addRangeWithTextField(parentElement, S|T, 'Compliance:', 'compliance', 0, 100, 0,
                     (value) => (0.01 / 1000.0 * 10 ** (6.0 * value / 100.0)));
-                addRadioButtons(parentElement, 'Rayleigh Type:', Settings_RayleighTypeBit, Settings_RayleighTypeMask,
+                addRadioButtons(parentElement, S|T, 'Rayleigh Type:', Settings_RayleighTypeBit, Settings_RayleighTypeMask,
                     [['Orig', 'Lim', 'Vel', 'Amor']]);
-                addRangeWithTextField(parentElement, 'Rayleigh Damp:', 'damping', 0, 100, 0,
+                addRangeWithTextField(parentElement, S|T, 'Rayleigh Damp:', 'damping', 0, 100, 0,
                     (value) => (10 ** (6.0 * value / 100.0 - 3.0) - 0.001));
-                addRangeWithTextField(parentElement, 'PBD Damp:', 'pbdDamping', 0, 100, 0,
+                addRangeWithTextField(parentElement, S, 'PBD Damp:', 'pbdDamping', 0, 100, 0,
                     (value) => ((4 ** (value / 100.0) - 1.0) / 3.0));
-                addRangeWithTextField(parentElement, '𝑣 *= (1-x) Drag:', 'drag', 0, 100, 0,
+                addRangeWithTextField(parentElement, S, '𝑣 *= (1-x) Drag:', 'drag', 0, 100, 0,
                     (value) => (1.0 / 1000.0 * (10 ** (3.0 * value / 100.0) - 1.0)));
-                addRangeWithTextField(parentElement, 'Poisson\'s Ratio:', 'poissonsRatio', 0, 100, 0,
+                addRangeWithTextField(parentElement, S|T, 'Poisson\'s Ratio:', 'poissonsRatio', 0, 100, 0,
                     (value) => (0.5 * (value / 100.0)));
 
-                addCheckbox(parentElement, 'Positioning:', [Settings_Rotate90Degrees, Settings_Centered], ['Rot 90°', 'Centered']);
-                addCheckbox(parentElement, 'Lock:',
+                addCheckbox(parentElement, S, 'Positioning:', [Settings_Rotate90Degrees, Settings_Centered], ['Rot 90°', 'Centered']);
+                addCheckbox(parentElement, S, 'Lock:',
                     [Settings_LockLeft, Settings_LockRight, Settings_RotateLock],
                     ['Left' , 'Right', 'Rotate']);
-                addRangeWithTextField(parentElement, 'Left-Right Separation:', 'leftRightSeparation', 0, 1000, 0,
+                addRangeWithTextField(parentElement, S, 'Left-Right Separation:', 'leftRightSeparation', 0, 1000, 0,
                     (value) => (2.0 * (value / 1000.0)));
 
+                addButton(parentElement, T, "Step", "(S)tep", function(side) {
+                    console.log('side', side);
+                    rpc('StepExplorer', side);
+                });
+
                 parentElement.appendChild(document.createElement('br'));
                 parentElement.appendChild(document.createElement('br'));
                 parentElement.appendChild(document.createElement('br'));
 
-                addRangeWithTextField(parentElement, 'Time Scale:', 'timeScale', 0, 100, 0,
+                addRangeWithTextField(parentElement, S, 'Time Scale:', 'timeScale', 0, 100, 0,
                     (value) => (value / 100));
-                addRangeWithTextField(parentElement, 'Volume Passes:', 'volumePasses', 0, 20, 1,
+                addRangeWithTextField(parentElement, S, 'Volume Passes:', 'volumePasses', 0, 20, 1,
                     (value) => (value));
-                addRangeWithTextField(parentElement, 'Wonkiness:', 'wonkiness', 0, 100, 0,
+                addRangeWithTextField(parentElement, S, 'Wonkiness:', 'wonkiness', 0, 100, 0,
                     (value) => (value / 100));
-                addRadioButtons(parentElement, 'Tri/Tet Pattern:', Settings_ElementPatternBit, Settings_ElementPatternMask,
+                addRadioButtons(parentElement, S, 'Tri/Tet Pattern:', Settings_ElementPatternBit, Settings_ElementPatternMask,
                     [['Uniform', 'Mirrored']]);
 
                 updateSettings();
+
+                setDemoMode(Demo_Sim);
             });
         </script>
     </div>

@@ -282,6 +282,7 @@ document.addEventListener('DOMContentLoaded', function(event) {
 					rpc('OnTouchEvent', type, TouchDevice_Mouse, time, i, x, y);
 				}
 			}
+			rpc('OnTouchEvent', type, TouchDevice_Mouse, time, 0xffffffff, x, y);
 		} else {
 			let map = [0, 2, 1, 3, 4];
 			rpc('OnTouchEvent', type, TouchDevice_Mouse, time, map[event.button], x, y);
