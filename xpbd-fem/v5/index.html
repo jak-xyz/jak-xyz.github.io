@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+
+    <title>XPBD FEM</title>
+
+    <link rel="stylesheet" href="styles.css">
+
+    <meta name="description" content="Interactive demo of various FEM techniques integrated with XPBD">
+    <meta property="og:title" content="XPBD FEM">
+    <meta property="og:description" content="Interactive demo of various FEM techniques integrated with XPBD">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://jak-xyz.github.io/xpbd-fem">
+    <link rel="canonical" href="https://jak-xyz.github.io/xpbd-fem">
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💥</text></svg>">
+
+    <meta name="theme-color" content="#FFFFFF">
+</head>
+
+<body>
+    <div id="content">
+    </div>
+    <div id="topbar">
+        <div class="topbar-entry" style="text-align: left">
+            <button type="button" onclick="rpc('ResetExplorer'); return resetBlocks();">(R)eset</button>
+            <button type="button" onclick="return toggleAllLinks();">Toggle (L)inks</button>
+        </div>
+        <div class="topbar-entry" style="text-align: center">
+            <form class="control-input-bag-row">
+                Mode:&ensp;
+                <label for="mode-sim" class="control-input-bag-contents">
+                    Sim<input type="radio" id="mode-sim" name="mode" value="1" onchange="setDemoMode(Demo_Sim);">
+                </label>
+                <label for="mode-step" class="control-input-bag-contents">
+                    Step<input type="radio" id="mode-step" name="mode" value="2" onchange="setDemoMode(Demo_Step);">
+                </label>
+                <label for="mode-exp" class="control-input-bag-contents">
+                    Explore<input type="radio" id="mode-exp" name="mode" value="4" onchange="setDemoMode(Demo_Explore);">
+                </label>
+            </form>
+        </div>
+        <div class="topbar-entry" style="text-align: right">
+            <span id="text-toggle" onclick="return toggleExplainerText();">Show explainer text</span>
+            <script>
+                function toggleExplainerText() {
+                    let toggle = document.getElementById('text-toggle');
+                    let explainer = document.getElementById('explainer-text');
+                    if (explainer.style.display != 'block') {
+                        toggle.textContent = 'Hide explainer text';
+                        explainer.style.display = 'block';
+                    } else {
+                        toggle.textContent = 'Show explainer text';
+                        explainer.style.display = 'none';
+                    }
+                }
+            </script>
+        </div>
+    </div>
+    <div id="explainer-text">
+        <p>
+        This web page demonstrates the finite element method (FEM) implemented with small step XPBD (<a href="http://mmacklin.com/smallsteps.pdf">paper</a>). The jumping off point for this implementation was Position-Based Simulation of Continuous Materials (<a href="http://interactive-graphics.de/index.php/research/37-position-based-simulation-of-continuous-materials">paper</a>), which suggests directly constraining non-linear hyperelastic potential energy functions. I've extended it to support more advanced element types than just triangles and tetrahedra and I've experimented with mixed method constraints, as well. Recently, A Constraint-based Formulation of Stable Neo-Hookean Materials (<a href="https://mmacklin.com/neohookean.pdf">paper</a>) was published, which shows how to more precisely implement energy constraints with XPBD, and I have incorporated those suggestions.
+        </p>
+        <p>
+        You can select one of 3 demo <b>Mode</b>s directly below the viewport. <b>Sim</b> allows you to play with various 2D and 3D FEM meshes. You can click/drag on the elements in the viewport above to move them around, as well as tweak many aspects of the simulation with controls down below. <b>Step</b> zooms in to a single (2D) element, and allows you to single-step through the simulation. <b>Explore</b> attempts to visualize calculations that go into running the FEM simulation. Probably too obtuse to be of use to anyone in its current state, but it might eventually serve as the backdrop to a video presentation I'm thinking about making.
+        </p>
+        Detailed notes on the 3 modes follow.
+        <p>
+        </p>
+        <h3>
+        Notes on Sim controls:
+        </h3>
+        <p>
+        You can enable a second instance of the simulation by selecting a non-null element type in the right hand column, which should make it easy to compare and contrast different settings. The column of buttons between the two sets of controls are link toggles. When the link is turned on, the corresponding right-hand control will dim and take on the value of the left hand control. Press 'L' to toggle most of the links at once. If the simulation ever becomes catastrophically unstable, 'R' will reset it. To restore factory defaults, press this button: <button type="button" onclick="return resetSettings();">Reset Settings</button>.
+        </p>
+        <h4>
+        Control descriptions:
+        </h4>
+        <p>
+        <b>Element Type:</b> The type of the individual finite elements. All shapes other than T3 and T4 are non-linear, which is an issue for many other integration methods, but is no sweat for XPBD. T6, T10, Q8, Q9. H20 and H27 are higher order quadratic elements (and therefore <i>especially non-linear</i>).
+        </p>
+        <p>
+        Unbalanced configurations of the tetrahedral elements (T4 and T10) experience significant non-physical ghost forces. This is especially obvious if you set the Shape to "Line", the Tri/Tet Pattern to "Uniform" and set all forms of drag and damping to 0. Switching the Tri/Tet Pattern to "Mirrored" and then choosing a balanced Shape like "Beam M" should eliminate most of the chaotic movement.
+        </p>
+        <p>
+        <b>Energy Function:</b> Controls the constraint used by the finite elements. These are worth describing in detail.
+        <div style="margin-left: 1em;">
+            <p>
+            <b>Pixar:</b> A simple energy function outlined in Pixar's Stable Neo-Hookean Flesh Simulation (<a href="https://graphics.pixar.com/library/StableElasticity/paper.pdf">paper</a>). It has a tendency to break down catastrophically under tension, especially with low step counts, low compliance or high Poisson's ratios. First order elements (T3/Q4/T4/H8) all exhibit minor "locking" where movement is artificially restricted for numerical reasons. At nearly incompressible Poisson's ratios (>0.49), the locking becomes quite severe. Quadratic elements (T6/T10/Q9/H27) do better, but even they lock somewhat at very high Poisson's ratios.
+            </p>
+            <p>
+            <b>Reduced:</b> Fully reduced integration. By performing numerical integration with fewer samples than necessary, we can see locking is gone! Unfortunately, so is any semblance of structural stability. This is probably not a practical mode, but I thought it was interesting for demonstration purposes. (This is only enabled for the quad and hex elements.)
+            </p>
+            <p>
+            <b>PSel:</b> Selectively reduced integration. Only uses reduced integration on the volume-preserving portion of the energy function. Fully integrates the Neo-Hookean 𝐼₁ (i.e. tr(𝐹ᵀ𝐹)) term. On the positive side, this eliminates the locking in quad/hex elements and the algorithm is significantly faster, as 𝐼₁ can be factored into O(𝑛²) pre-integrated terms (where 𝑛 is the number of nodes in an element), and performing reduced integration on the volume-preserving component requires a fraction of the samples compared to full integration. On the negative side, some amount of "hourglassing" is introduced, manifesting as zig-zag artifacts.
+            </p>
+            <p>
+            <b>Mixed:</b> Mixed method Neo-Hookean. Instead of trying to solve each element with a single constraint function, breaks the solution into separate deviatoric and volumetric constraints. Compared to the previous irreducible energy functions, this is more stable, and converge to full stiffness with relatively low step counts. This is especially true at very high Poisson's ratios, where the Pixar energy functions required many Steps/Second to converge.
+            </p>
+            <p>
+            <b>MSel:</b> As PSel is for Pixar, MSel is for Mixed. Performs full integration on the deviatoric constraint while using reduced integration on the volume constraint. Improves performance and reduces locking, while introducing some hourglassing.
+            </p>
+            <p>
+            <b>Yeoh:</b> Replaces the Neo-Hookean constraint of Mixed with a Yeoh constraint tuned approximately for skin. Less stable than Neo-Hookean and requires higher step counts to resolve properly, but displays a markedly different behavior compared to Neo-Hookean. It's very loose under low amounts of extension, and then quickly becomes very stiff as it gets stretched. Unlike the previous energy functions, Yeoh is only designed for the nearly-incompressible range, so Poisson's Ratio needs to be set to 0.4999 or higher.
+            </p>
+            <p>
+            <b>YSel:</b> As MSel is for Mixed, YSel is for Yeoh. Using reduced integration on the volumetric constraint significantly reduces locking. Locking isn't eliminated, though, as the Yeoh deviatoric constraint introduces some locking of its own.
+            </p>
+            <p>
+            <b>YFast:</b> An approximation of YSel. While regular Yeoh calculates and transforms a Neo-Hookean term per-quadrature point, this version calculates a Neo-Hookean term for the whole element and then applies the Yeoh transformation to that. As a result, the per-constraint speed is nearly as fast as regular Neo-Hookean, and yet it still behaves very similarly to full Yeoh. In fact, it converges at lower Steps/Second, though hourglassing even more apparent.
+            </p>
+            <p>
+            <b>VPix:</b> A version of the Pixar energy function, but instead of constraining per-element, constrains per-vertex by summing the energy integrals of all surrounding elements. For the linear tri and tet elements (T3/T4), only integrates the hyperelastic invariants, and then calculates the energy using the summed invariants. This greatly reduces locking, though does not eliminate it completely. Per constraint, this method is significantly more expensive than constraining per-element, though it generally requires fewer Steps/Second to converge.
+            </p>
+            <p>
+            <b>VMix:</b> A version of the Mixed Subregion constraint implemented per-vertex. This is too slow for higher order elements, but for T3/T4, it might be the best choice.
+            </p>
+            <p>
+            <b>VSkin:</b> YSel implemented per vertex.
+            </p>
+            <p>
+            <b>CubeNeo:</b> An approximate version of mixed Neo-Hookean that only works on square Q4 and cube H8 elements. Relies on the fact that the gradient of 𝐼₁ for a square/cube is well approximated by the vectors pointing from the centroid to each node (you can see this by examining the terms of the pre-integrated factoring of 𝐼₁). This version of the constraint is the simplest to code up and runs significantly faster than the full version, the big downside being it only works on perfect squares and cubes. Setting Rayleigh Damp to 0 and Poisson's Ratio to 0.5 switches to an even more approximate and performant code path where node masses are assumed to be identical per-element.
+            </p>
+            <p>
+            <b>CubeSkin:</b> Same as CubeNeo, but with the additional YFast hack applied.
+            </p>
+        </div>
+        </p>
+        <p>
+        <b>Solve:</b> The first two options select between Serial and Simultaneous solvers for the Mixed, MSel, Yeoh, YSel and YFast Energy Functions. Simultaneous means the deviatoric and volumetric constraints are solved simultaneously with the matrix form of XPBD, though the individual elements are still solved serially in a Gauss-Seidel fashion. The Simultaneous solver seems to be able to hold its shape better at low Steps/Second and also accommodates higher levels of Rayleigh damping. The DevOnly and VolOnly options exist for demonstration purposes and run either the deviatoric or volumetric constraints in isolation.
+        </p>
+        <p>
+        <b>Shape:</b> The shape of the aggregate FEM block. I've done most of my testing using Beam L, Box L and Armadillo. Armadillo loads the Stanford Armadillo mesh or something like it. I was unable to get an automatic mesher to work for hex meshes, so for H8/H27 you get my hand made Armadillo-Bear.
+        </p>
+        <p>
+        <b>Steps/Second:</b> Affects the fidelity of the simulation. Has linear CPU cost. Depending on the combination of energy function, compliance and how much stress the simulation is under, may need to be increased for the simulation to converge. When trying out new settings, it's a good idea to crank this value to as high as your machine can handle, and then lower it to just above the point where the sim breaks down to get best performance.
+        </p>
+        <p>
+        <b>Gravity:</b> Gravitational constant in meters per second. The sim is quite "zoomed in," which is why the default gravity is so low.
+        </p>
+        <p>
+        <b>Compliance:</b> Inverse of stiffness. Thanks to XPBD, it's independent of timestep.
+        </p>
+        <p>
+        <b>Rayleigh Type:</b> The implementation of Rayleigh damping to use.
+        <div style="margin-left: 1em;">
+            <p>
+            <b>Orig:</b> Rayleigh damping as described in the original <a href="https://matthias-research.github.io/pages/publications/XPBD.pdf">XPBD paper</a>. While this looks quite nice at low damping levels and strains, it interferes with volume conservation, even at very high Steps/Second.
+            </p>
+            <p>
+            <b>Lim:</b> Breaks damping out into its own constraint and then limits how large it can get relative to the main constraint function. This reduces the maximum strength of damping, but also greatly reduces the artifacts. Both constraints are still applied at the same time, so the cost is barely increased compared to the original.
+            </p>
+            <p>
+            <b>Vel:</b> Applies damping directly to velocity as a post process after all position constraints are calculated. This allows maximum damping and completely removes artifacts. Unfortunately is very expensive, as it's essentially doubling the number of constraints that are run each step.
+            </p>
+            <p>
+            <b>Amor:</b> Similar to Vel, but amortizes the calculations over 8 steps. This reduces the maximum possible damping, but otherwise appears to generate very similar behavior (though I'd hesitate to recommend this as a generally viable solution, as this kind of thing feels like it has the potential to introduce weird resonances).
+            </p>
+        </div>
+        </p>
+        <p>
+        <b>Rayleigh Damp:</b> The strength of Rayleigh damping. In the terms used by the XPBD paper, this is the gamma value, not the beta value, as gamma can be well defined even when Poisson's ratio is 0.5.
+        </p>
+        <p>
+        <b>PBD Damp:</b> The non-rigid body mode damping described in the venerable <a href="https://matthias-research.github.io/pages/publications/posBasedDyn.pdf">Position Based Dynamics paper</a>. Similar to Rayleigh damping, though a bit more aggressive. Also becomes amortized when the Amor Rayleigh Type is selected.
+        </p>
+        <p>
+        <b>𝑣 *= (1-x) Drag:</b> Damps all motion, including rigid body motion. Basically what it says on the tin, though corrected to be independent of timestep.
+        </p>
+        <p>
+        <b>Poisson's Ratio:</b> As discussed in the energy function section, controls how volume preserving the sim is. All of the energy functions are geared towards high Poisson's ratios. The Yeoh energy functions require this value to be >0.4999, whereas the Pixar ones become numerically stiff above 0.49.
+        </p>
+        <p>
+        <b>Positioning:</b> Rot 90° causes the block to hang downward, which can be useful for testing damping. Centered forces the block to stay centered, which is useful for doing very detailed comparisons between two settings.
+        </p>
+        <p>
+        <b>Lock:</b> Left and Right lock the corresponding side of the block in place. Rotate will rotate the right side of the block around the block's midpoint, which can be useful when examining volumetric locking.
+        </p>
+        <p>
+        <b>Left-Right Separation:</b> When both the Left and Right locks are selected, allows you to test stretching and compression.
+        </p>
+        <p>
+        <b>Time Scale:</b> Allows you to slow down the passage of time in the simulation. Useful to observe how things explode when your settings aren't quite right.
+        </p>
+        <p>
+        <b>Volume Passes:</b> Controls how many additional volume-only constraint solves are run after the regular energy function constraints. Only useful when going for incompressibility, but in certain cases might allow significantly turning down the Steps/Second, saving CPU time. Currently not implemented for vertex constraints.
+        </p>
+        <p>
+        <b>Wonkiness:</b> Perturbs the verts to demonstrate support for non rectilinear elements. Values above 0.5 are out of spec, but you can try setting it higher to see how the sim fails.
+        </p>
+        <p>
+        <b>Tri/Tet Pattern:</b> The pattern of the orientations of tri and tet elements. "Uniform" most closely resembles the distribution you'd get in a generated mesh, and also unfortunately has serious locking problems for first order elements. "Mirrored" is mainly thrown in out of interest, as it significantly reduces locking, though it has subtle artifacts of its own.
+        </p>
+
+        <h3>
+        Notes on Step controls:
+        </h3>
+        <p>
+        Presents 3 elements: Reference, Map and Current. Reference displays the canonical reference element and can't be interacted with. Map represents the rest state of the element. Current shows the current state as well as the state after one time step. The (S)tep button (or pressing the 'S' key) advances the simulation one time step.
+        </p>
+        <p>
+        Probably most useful for exploring how one step of XPBD behaves at its limits. For Poisson's Ratios very close to 0.5, shows how much the volumetric constraint dominates. Viewing the deviatoric constraint pretty much requires selecting the DevOnly Solve mode and massively decreasing Steps/Second and Compliance. Also useful for comparing the Orig and Lim Rayleigh Types (since this single step mode doesn't track velocity, Vel and Amor do nothing).
+        </p>
+
+        <h3>
+        Notes on Explore controls:
+        </h3>
+        <p>
+        This mode is a work in progress.
+        </p>
+        <p>
+        Presents the same 3 elements as the previous mode (canonical, map and current), but exposes the metaphorical electrons, protons and neutrons of the FEM element. Most everything can be clicked on to either provide a brief explanation of what it is, or reveal a realtime updating equation showing how the value is calculated. I expect it's too much of an information-overload to be useful in its current state, but perhaps someone working their way through Zienkiewicz et al. could find it useful.
+        </p>
+
+        <p id="text-toggle" style="margin: 0px auto; text-align: center; font-size: 1rem;" onclick="return toggleExplainerText();">Hide explainer text</p>
+    </div>
+    <div id="controls">
+        <script>
+            document.addEventListener('DOMContentLoaded', function(event) {
+                let parentElement = document.getElementById('controls');
+
+                // function addBlock(type, width, height, xScale, yScale) {
+                //     rpc('AddBlock', type, width, height, xScale, yScale);
+                // }
+                resetBlocks();
+
+                const S = Demo_Sim;
+                const T = Demo_Step;
+                const E = Demo_Explore;
+
+                addRadioButtons(parentElement, S|T|E, 'Element Type:', Settings_ElementTypeBit, Settings_ElementTypeMask,
+                    [['∅', 'T3', 'T6', 'Q4', 'Q8', 'Q9'], ['T4', 'T10', 'H8', 'H20', 'H27']]);
+
+                addRadioButtons(parentElement, E, 'Quadrature #:', Settings_QuadratureOrderBit, Settings_QuadratureOrderMask,
+                    [['1', '2', '3']]);
+                addRadioButtons(parentElement, E, 'Calc Vis:', Settings_CalcVisBit, Settings_CalcVisMask,
+                    [['Invariants', 'N<span style="position: relative; font-size: smaller; top: -0.25em">T</span>N']]);
+
+                addRadioButtons(parentElement, S|T, 'Energy Function:', Settings_EnergyBit, Settings_EnergyMask,
+                    [['Pixar', '<span style="color:#910">Reduced</span>', 'PSel'], ['Mixed', 'MSel'], ['Yeoh', 'YSel', 'YFast'], ['VPix', 'VMix', 'VSkin'], ['CubeNeo', 'CubeSkin']]);
+                addRadioButtons(parentElement, S|T, 'Solve:', Settings_SolveBit, Settings_SolveMask,
+                    [['Serial', 'Simultaneous'], ['DevOnly', 'VolOnly']]);
+                addDropdown(parentElement, S, 'Shape:', Settings_ShapeBit, Settings_ShapeMask,
+                    ['Single', 'Line', 'Beam Low', 'Beam Medium', 'Beam High', 'Beam 2x1', 'Beam 1x2', 'Beam 4x1', 'Beam 8x1', 'Box Low', 'Box Medium', 'Box High', 'Armadillo']);
+
+                addRangeWithTextField(parentElement, S|T, 'Steps/Second:', 'stepsPerSecond', 0, 100, 0,
+                    (value) => (200.0 * 10 ** (2.0 * value / 100)));
+                addRangeWithTextField(parentElement, S, 'Gravity:', 'gravity', 0, 100, 0,
+                    (value) => (10.0 * (value / 100) ** 2));
+                addRangeWithTextField(parentElement, S|T, 'Compliance:', 'compliance', 0, 100, 0,
+                    (value) => (0.01 / 1000.0 * 10 ** (6.0 * value / 100.0)));
+                addRadioButtons(parentElement, S|T, 'Rayleigh Type:', Settings_RayleighTypeBit, Settings_RayleighTypeMask,
+                    [['Orig', 'Lim', 'Vel', 'Amor']]);
+                addRangeWithTextField(parentElement, S|T, 'Rayleigh Damp:', 'damping', 0, 100, 0,
+                    (value) => (10 ** (6.0 * value / 100.0 - 3.0) - 0.001));
+                addRangeWithTextField(parentElement, S, 'PBD Damp:', 'pbdDamping', 0, 100, 0,
+                    (value) => ((4 ** (value / 100.0) - 1.0) / 3.0));
+                addRangeWithTextField(parentElement, S, '𝑣 *= (1-x) Drag:', 'drag', 0, 100, 0,
+                    (value) => (1.0 / 1000.0 * (10 ** (3.0 * value / 100.0) - 1.0)));
+                addRangeWithTextField(parentElement, S|T, 'Poisson\'s Ratio:', 'poissonsRatio', 0, 100, 0,
+                    (value) => (0.5 * (value / 100.0)));
+
+                addCheckbox(parentElement, S, 'Positioning:', [Settings_Rotate90Degrees, Settings_Centered], ['Rot 90°', 'Centered']);
+                addCheckbox(parentElement, S, 'Lock:',
+                    [Settings_LockLeft, Settings_LockRight, Settings_RotateLock],
+                    ['Left' , 'Right', 'Rotate']);
+                addRangeWithTextField(parentElement, S, 'Left-Right Separation:', 'leftRightSeparation', 0, 1000, 0,
+                    (value) => (2.0 * (value / 1000.0)));
+
+                addButton(parentElement, T, "Step", "(S)tep", function(side) {
+                    console.log('side', side);
+                    rpc('StepExplorer', side);
+                });
+
+                parentElement.appendChild(document.createElement('br'));
+                parentElement.appendChild(document.createElement('br'));
+                parentElement.appendChild(document.createElement('br'));
+
+                addRangeWithTextField(parentElement, S, 'Time Scale:', 'timeScale', 0, 100, 0,
+                    (value) => (value / 100));
+                addRangeWithTextField(parentElement, S, 'Volume Passes:', 'volumePasses', 0, 20, 1,
+                    (value) => (value));
+                addRangeWithTextField(parentElement, S, 'Wonkiness:', 'wonkiness', 0, 100, 0,
+                    (value) => (value / 100));
+                addRadioButtons(parentElement, S, 'Tri/Tet Pattern:', Settings_ElementPatternBit, Settings_ElementPatternMask,
+                    [['Uniform', 'Mirrored']]);
+
+                updateSettings();
+
+                setDemoMode(Demo_Sim);
+            });
+        </script>
+    </div>
+    <script src="main.js"></script>
+    <script src="ui.js"></script>
+</body>
+</html>
