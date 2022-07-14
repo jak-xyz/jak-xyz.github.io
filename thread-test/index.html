@@ -24,7 +24,7 @@
     const coi = {
         shouldRegister: () => true,
         shouldDeregister: () => false,
-        doReload: () => window.location.replace('index.html'),
+        doReload: () => window.location.reload(),
         quiet: false,
         ...window.coi
     }
