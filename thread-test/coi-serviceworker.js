@@ -19,8 +19,8 @@ if (typeof window === 'undefined') {
     self.addEventListener("fetch", function (event) {
         let request = event.request;
         let url = new URL(request.url);
-        if (url.pathname === '/index.html') {
-            url.pathname = '/index-coi.html';
+        if (url.pathname.endsWith('/index.html')) {
+            url.pathname = url.pathname.replace(/index.html$/, 'index-coi.html');
             request = new Request(url.toString(), {
                         method: event.request.method,
                         headers: event.request.headers,
@@ -32,7 +32,7 @@ if (typeof window === 'undefined') {
             console.log('Modifying request from /index.html to /index-coi.html.');
         }
 
-        if (url.pathname !== '/index-coi.html' && event.request.cache === "only-if-cached" && event.request.mode !== "same-origin") {
+        if (!url.pathname.endsWith('/index-coi.html') && event.request.cache === "only-if-cached" && event.request.mode !== "same-origin") {
             return;
         }
 
