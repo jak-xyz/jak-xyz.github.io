@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+
+<title>Threading Demo</title>
+<meta name="description" content="Demo of multithreaded FEM fluids in WASM">
+<meta property="og:title" content="FEM Fluid Demo">
+<meta property="og:description" content="Demo of multithreaded FEM fluids in WASM">
+<meta property="og:locale" content="en_US">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jak-xyz.github.io/fem-fluid">
+<link rel="canonical" href="https://jak-xyz.github.io/fem-fluid">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛁</text></svg>">
+
+<meta name="theme-color" content="#FFFFFF">
+<script>
+/*! coi-serviceworker v0.1.6 - Guido Zuidhof, licensed under MIT */
+(() => {
+
+    // You can customize the behavior of this script through a global `coi` variable.
+    const coi = {
+        shouldRegister: () => true,
+        shouldDeregister: () => false,
+        doReload: () => window.location.reload(),
+        quiet: false,
+        ...window.coi
+    }
+
+    function displayError(errorHtml) {
+        document.addEventListener('DOMContentLoaded', function(event) {
+            document.body.innerHTML = errorHtml;
+        });
+    }
+
+    const n = navigator;
+    if (coi.shouldDeregister() && n.serviceWorker && n.serviceWorker.controller) {
+        n.serviceWorker.controller.postMessage({ type: 'deregister' });
+    }
+
+    if (!window.isSecureContext) {
+        !coi.quiet && console.log('COOP/COEP Service Worker not registered, a secure context is required.');
+        displayError(`
+            Page can't be loaded!</br>
+            window.isSecureContext == false</br>
+            This is usually caused by using unsecured HTTP, or having an invalid HTTPS connection.</br>
+            Can't launch COOP/COEP header upgrade Service Worker.</br>`);
+        return;
+    }
+
+    // In some environments (e.g. Chrome incognito mode) this won't be available
+    if (!n.serviceWorker) {
+        displayError(`
+            Page can't be loaded!</br>
+            navigator.serviceWorker API not available.</br>
+            This is usually caused by using Incognito/Private Mode or an old browser.</br>
+            Can't launch COOP/COEP header upgrade Service Worker.</br>`);
+        return;
+    }
+
+    n.serviceWorker.register('coi-serviceworker.js').then(
+        (registration) => {
+            !coi.quiet && console.log('COOP/COEP Service Worker registered', registration.scope);
+
+            registration.addEventListener('updatefound', () => {
+                !coi.quiet && console.log('Reloading page to make use of updated COOP/COEP Service Worker.');
+                coi.doReload();
+            });
+
+            // If the registration is active, but it's not controlling the page
+            if (registration.active && !n.serviceWorker.controller) {
+                !coi.quiet && console.log('Reloading page to make use of COOP/COEP Service Worker.');
+                coi.doReload();
+            }
+        },
+        (err) => {
+            !coi.quiet && console.error('COOP/COEP Service Worker failed to register:', err);
+            displayError(`
+                Page can't be loaded!</br>
+                navigator.serviceWorker.register failed (error in console).</br>
+                Can't launch COOP/COEP header upgrade Service Worker.</br>`);
+        }
+    );
+
+})();
+</script>
+</head>
+<body>
+</body>
+</html>
