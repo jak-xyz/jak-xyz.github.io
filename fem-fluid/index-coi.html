@@ -65,43 +65,43 @@ const MEMORY_SIZE = 167772160, STACK_SIZE = 65536, MAX_WORKER_THREADS = 16;
             </script>
         </div>
     -->
-    </div>
-    <!--
-    <div id="explainer-text">
-        <p>
-            This is a test of multi-threaded WASM.
-        </p>
-        <p>
-            <button onclick="tweak.resetTweaks()">Reset</button>
-        </p>
+</div>
+<!--
+<div id="explainer-text">
+    <p>
+        This is a test of multi-threaded WASM.
+    </p>
+    <p>
+        <button onclick="tweak.resetTweaks()">Reset</button>
+    </p>
 
-        <p id="text-toggle" style="margin: 0px auto; text-align: center; font-size: 1rem;" onclick="return toggleExplainerText();">
-            Hide explainer text
-        </p>
-    </div>
-    -->
-    <div id="controls">
-        <script>
-            document.addEventListener('DOMContentLoaded', function (event) {
-                document.addEventListener('keydown', function (event) {
-                    // We never want to look at input if the user is typing in a text box
-                    if (document.activeElement.tagName.toLowerCase() == 'input' &&
-                        document.activeElement.type.toLowerCase() == 'text') { return; }
+    <p id="text-toggle" style="margin: 0px auto; text-align: center; font-size: 1rem;" onclick="return toggleExplainerText();">
+        Hide explainer text
+    </p>
+</div>
+-->
+<div id="controls">
+    <script>
+        document.addEventListener('DOMContentLoaded', function (event) {
+            document.addEventListener('keydown', function (event) {
+                // We never want to look at input if the user is typing in a text box
+                if (document.activeElement.tagName.toLowerCase() == 'input' &&
+                    document.activeElement.type.toLowerCase() == 'text') { return; }
 
-                    if (event.key.toUpperCase() == 'R') {
-                        main.rpc('Reset');
-                    }
-                    if (event.key.toUpperCase() == 'L') {
-                        tweak.toggleAllLinks();
-                    }
+                if (event.key.toUpperCase() == 'R') {
+                    main.rpc('Reset');
+                }
+                if (event.key.toUpperCase() == 'L') {
+                    tweak.toggleAllLinks();
+                }
 
-                    // Furthermore, certain inputs we don't want to look at if the user has anything selected
-                    if (document.activeElement != document.body) { return; }
-                }, true);
-            });
-        </script>
-    </div>
-    <script src="main.js"></script>
-    <script src="tweak.js"></script>
+                // Furthermore, certain inputs we don't want to look at if the user has anything selected
+                if (document.activeElement != document.body) { return; }
+            }, true);
+        });
+    </script>
+</div>
+<script src="main.js"></script>
+<script src="tweak.js"></script>
 </body>
 </html>
