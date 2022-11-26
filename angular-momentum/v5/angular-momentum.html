@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<title>Angular Momentum Demo</title>
+
+		<link type="text/css" rel="stylesheet" href="styles.css">
+		<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥏</text></svg>">
+	</head>
+	<body>
+		<div id="content"></div>
+		<div id="controls"></div>
+		<div id="info" style="display: flex; justify-content: center; align-items: center;">
+			<div>I=</div>
+			<div id="I-matrix" class="matrix">
+				<div id="I-matrix-left" style="display: flex; flex-direction: column; margin-top: 0.4em">
+					<div id="I-matrix-left-0">⎡</div>
+					<div id="I-matrix-left-1">⎢</div>
+					<div id="I-matrix-left-2">⎣</div>
+				</div>
+				<div class="matrix-contents">
+					<div id="I-matrix-col-0" style="display: flex; flex-direction: column;">
+						<div id="I-matrix-0-0">1</div>
+						<div id="I-matrix-1-0">2</div>
+						<div id="I-matrix-2-0">3</div>
+					</div>
+					<div id="I-matrix-col-1" style="display: flex; flex-direction: column;">
+						<div id="I-matrix-0-1">1</div>
+						<div id="I-matrix-1-1">2</div>
+						<div id="I-matrix-2-1">3</div>
+					</div>
+					<div id="I-matrix-col-2" style="display: flex; flex-direction: column;">
+						<div id="I-matrix-0-2">1</div>
+						<div id="I-matrix-1-2">2</div>
+						<div id="I-matrix-2-2">3</div>
+					</div>
+				</div>
+				<div id="I-matrix-right" style="display: flex; flex-direction: column; margin-top: 0.4em">
+					<div id="I-matrix-right-0">⎤</div>
+					<div id="I-matrix-right-1">⎥</div>
+					<div id="I-matrix-right-2">⎦</div>
+				</div>
+			</div>
+			<div id="kinetic-energy" style="display: flex; flex-direction: column;">
+				<div style="margin-left:0.5em">K<sub>L</sub>=<span id="K_l"></span></div>
+				<div style="margin-left:0.5em">K<sub>R</sub>=<span id="K_r"></span></div>
+			</div>
+		</div>
+		<div id="key" style="display: flex; justify-content: center; align-items: center;">
+			<div style="color: #bb0e0e; padding: 0 0.5em;">Velocity</div>
+			<div style="color: #881688; padding: 0 0.5em;">Angular Velocity</div>
+			<div style="color: #1a33cc; padding: 0 0.5em;">Angular Momentum</div>
+		</div>
+
+		<!-- Import maps polyfill -->
+		<!-- Remove this when import maps will be widely supported -->
+		<script async src="https://unpkg.com/es-module-shims@1.6.2/dist/es-module-shims.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.146.0/build/three.module.js",
+					"OrbitControls": "https://unpkg.com/three@0.146.0/examples/jsm/controls/OrbitControls.js"
+				}
+			}
+		</script>
+
+		<script type="module">
+			import * as THREE from 'three';
+			import { OrbitControls } from 'OrbitControls';
+
+			//-----------------------------------------------------------------
+			// Globals and constants
+			//-----------------------------------------------------------------
+			var scene, renderer, camera, controls;
+			var windowWidth, windowHeight;
+
+			const contentElem = document.getElementById('content');
+			const controlsElem = document.getElementById('controls');
+			const infoElem = document.getElementById('info');
+			var IMatrixElems = [];
+			for (let col = 0; col < 3; col++) {
+				for (let row = 0; row < 3; row++) {
+					IMatrixElems[row + col * 3] = document.getElementById(`I-matrix-${row}-${col}`);
+				}
+			}
+			var K_lElem = document.getElementById('K_l');
+			var K_rElem = document.getElementById('K_r');
+
+			const GroundY = -2.0;
+			const ParticleRad = 0.09;
+
+			var timeScale = 1.0;
+			var gravity = 0.0;
+			var nodeCount = 3;
+			var startingAngVel = 1.0;
+			var arrowScale = 1.0;
+			var activeConstraintCount = 0;
+			var startingScaleX = 1.0, startingScaleY = 1.0, startingScaleZ = 1.0;
+			var startingRotZ = 0.0, startingRotX = 0.0;
+			var isPlaying = false;
+
+			const X0s = [
+				[ new THREE.Vector3(0.0, 0.0, 0.0)
+				],
+				[ new THREE.Vector3(0.0, 1.0, 0.0),
+				  new THREE.Vector3(0.0, -1.0, 0.0),
+				],
+				[ new THREE.Vector3(0.0, 1.0, 0.0),
+				  new THREE.Vector3(-0.866025, -0.5, 0.0),
+				  new THREE.Vector3(0.866025, -0.5, 0.0),
+				],
+				[ new THREE.Vector3(1.0, 1.0, 1.0),
+				  new THREE.Vector3(-1.0, -1.0, 1.0),
+				  new THREE.Vector3(1.0, -1.0, -1.0),
+				  new THREE.Vector3(-1.0, 1.0, -1.0),
+				],
+				[ new THREE.Vector3(0.0, 1.0, 0.0),
+				  new THREE.Vector3(-1.0, 0.0, -1.0),
+				  new THREE.Vector3(+1.0, 0.0, -1.0),
+				  new THREE.Vector3(+1.0, 0.0, +1.0),
+				  new THREE.Vector3(-1.0, 0.0, +1.0),
+				],
+				[ new THREE.Vector3( +1.0, 0.0, 0.0),
+				  new THREE.Vector3( -1.0, 0.0, 0.0),
+				  new THREE.Vector3( 0.0, +1.0, 0.0),
+				  new THREE.Vector3( 0.0, -1.0, 0.0),
+				  new THREE.Vector3( 0.0, 0.0, +1.0),
+				  new THREE.Vector3( 0.0, 0.0, -1.0),
+				],
+				[ new THREE.Vector3(-1.0, -1.0, -1.0),
+				  new THREE.Vector3(+1.0, -1.0, -1.0),
+				  new THREE.Vector3(-1.0, +1.0, -1.0),
+				  new THREE.Vector3(+1.0, +1.0, -1.0),
+				  new THREE.Vector3(-1.0, -1.0, +1.0),
+				  new THREE.Vector3(+1.0, -1.0, +1.0),
+				  new THREE.Vector3(-1.0, +1.0, +1.0),
+				],
+				[ new THREE.Vector3(-1.0, -1.0, -1.0),
+				  new THREE.Vector3(+1.0, -1.0, -1.0),
+				  new THREE.Vector3(-1.0, +1.0, -1.0),
+				  new THREE.Vector3(+1.0, +1.0, -1.0),
+				  new THREE.Vector3(-1.0, -1.0, +1.0),
+				  new THREE.Vector3(+1.0, -1.0, +1.0),
+				  new THREE.Vector3(-1.0, +1.0, +1.0),
+				  new THREE.Vector3(+1.0, +1.0, +1.0),
+				],
+			]
+			for (let X0 of X0s) {
+				let CM = new THREE.Vector3(0.0, 0.0, 0.0);
+				for (let i = 0; i < X0.length; i++) { X0[i].normalize(); CM.add(X0[i]); }
+				CM.multiplyScalar(1.0 / X0.length);
+				for (let i = 0; i < X0.length; i++) { X0[i].sub(CM); }
+			}
+
+			//-----------------------------------------------------------------
+			// LineMeshWrapper class
+			//-----------------------------------------------------------------
+			const lineGeo = new THREE.CylinderGeometry(1.0, 1.0, 1.0, 31 );
+			lineGeo.translate(0.0, 0.5, 0.0);
+			const lineConeGeo = new THREE.ConeGeometry(1.0, 1.0, 31 );
+			lineConeGeo.translate(0.0, 0.5, 0.0);
+			lineConeGeo.scale(2.0, 1.0, 2.0);
+			class LineMeshWrapper {
+				constructor(thickenss, hasCone, material) {
+					this.thickness = thickenss;
+					this.lineMesh = new THREE.Mesh(lineGeo, material);
+					this.lineMesh.castShadow = true;
+					this.lineMesh.receiveShadow = true;
+					this.coneMesh = hasCone ? new THREE.Mesh(lineConeGeo, material) : null;
+					if (this.coneMesh) {
+						this.coneMesh.castShadow = true;
+						this.coneMesh.receiveShadow = true;
+					}
+				}
+				addToScene(scene) {
+					scene.add(this.lineMesh);
+					if (this.coneMesh) { scene.add(this.coneMesh); }
+				}
+				setVisible(visible) {
+					this.lineMesh.visible = visible;
+					if (this.coneMesh) { this.coneMesh.visible = visible; }
+				}
+				line(from, to) {
+					let Y = (new THREE.Vector3()).subVectors(to, from);
+					let X = Math.abs(Y.x) <= Math.abs(Y.y) && Math.abs(Y.x) <= Math.abs(Y.z) ?
+						new THREE.Vector3(1.0, 0.0, 0.0) : Math.abs(Y.y) <= Math.abs(Y.z) ?
+						new THREE.Vector3(0.0, 1.0, 0.0) : new THREE.Vector3(0.0, 0.0, 1.0);
+					let Z = (new THREE.Vector3()).crossVectors(X, Y).normalize();
+					X.crossVectors(Y, Z).normalize();
+					X.multiplyScalar(this.thickness);
+					Z.multiplyScalar(this.thickness);
+					if (!this.coneMesh) {
+						this.lineMesh.matrix.makeBasis(X, Y, Z);
+						this.lineMesh.matrix.setPosition(from);
+						this.lineMesh.matrixAutoUpdate = false;
+					} else {
+						let len = Y.length();
+						let coneLen = len > 6.0 * this.thickness ? 4.0 * this.thickness : (4.0 / 6.0 * len);
+						let lineLen = len - 0.9 * coneLen;
+						this.lineMesh.matrix.makeBasis(X, Y.normalize().multiplyScalar(lineLen), Z);
+						this.lineMesh.matrix.setPosition(from);
+						this.lineMesh.matrixAutoUpdate = false;
+						this.coneMesh.matrix.makeBasis(X, Y.normalize().multiplyScalar(coneLen), Z);
+						this.coneMesh.matrix.setPosition((new THREE.Vector3()).addVectors(from, Y.normalize().multiplyScalar(len - coneLen)));
+						this.coneMesh.matrixAutoUpdate = false;
+					}
+				}
+				vec(origin, dir) {
+					this.line(origin, (new THREE.Vector3()).addVectors(origin, dir));
+				}
+			}
+
+			//-----------------------------------------------------------------
+			// Particle class
+			//-----------------------------------------------------------------
+			const particleGeo = new THREE.SphereGeometry(1.0, 32, 16);
+			class Particle {
+				constructor(X0, radius, lineThickness, partMaterial, partOldMaterial, velMaterial, angMomMaterial) {
+					this.X = (new THREE.Vector3()).copy(X0);
+					this.O = (new THREE.Vector3()).copy(this.X);
+					this.V = new THREE.Vector3(0.0, 0.0, 0.0);
+					this.m = 1.0;
+
+					this.partMesh = new THREE.Mesh(particleGeo, partMaterial);
+					this.partMesh.position.copy(this.X);
+					this.partMesh.scale.set(radius, radius, radius);
+					this.partMesh.castShadow = true;
+					this.partMesh.receiveShadow  = true;
+
+					this.partOldMesh = new THREE.Mesh(particleGeo, partOldMaterial);
+					this.partOldMesh.position.copy(this.O);
+					this.partOldMesh.scale.set(radius, radius, radius);
+					this.partOldMesh.castShadow = false;
+					this.partOldMesh.receiveShadow  = true;
+
+					this.velLine = new LineMeshWrapper(lineThickness, true, velMaterial);
+					this.angLine = new LineMeshWrapper(lineThickness, true, angMomMaterial);
+
+					this.velLine.vec(this.X, new THREE.Vector3(0.0, 0.0, 1.0));
+					this.angLine.vec(this.X, new THREE.Vector3(0.5, 0.5, 0.0));
+				}
+				addToScene(scene) {
+					scene.add(this.partMesh);
+					scene.add(this.partOldMesh);
+					this.velLine.addToScene(scene);
+					this.angLine.addToScene(scene);
+				}
+				setVisible(visible) {
+					this.partMesh.visible = visible;
+					this.partOldMesh.visible = visible;
+					this.velLine.setVisible(visible);
+					this.angLine.setVisible(visible);
+				}
+				updateMeshes(CM) {
+					this.partMesh.position.copy(this.X);
+					this.partOldMesh.position.copy(this.O);
+					this.velLine.vec(this.X, this.V.clone().multiplyScalar(arrowScale));
+					this.angLine.vec(this.X, this.X.clone().sub(CM).cross(this.V).multiplyScalar(this.m * arrowScale));
+				}
+			}
+
+			//-----------------------------------------------------------------
+			// Constraint class
+			//-----------------------------------------------------------------
+			class Constraint {
+				constructor(lineThickness, material) {
+					this.i0 = 0;
+					this.i1 = 1;
+					this.dist = 0.0;
+					this.line = new LineMeshWrapper(lineThickness, false, material);
+				}
+				setIdxs(particles, i0, i1) {
+					this.i0 = i0;
+					this.i1 = i1;
+					this.dist = particles[i0].X.distanceTo(particles[i1].X);
+				}
+				constrain(particles) {
+					let p0 = particles[this.i0];
+					let p1 = particles[this.i1];
+
+					let to = new THREE.Vector3().subVectors(p1.X, p0.X);
+					let len = to.length();
+					let N = to.clone().multiplyScalar(1.0 / Math.max(0.0000001, len));
+
+					let C = len - this.dist;
+					let lambda = -C / (1.0 / p0.m + 1.0 / p1.m);
+					p0.X.addScaledVector(N, -lambda / p0.m);
+					p1.X.addScaledVector(N, lambda / p1.m);
+				}
+				addToScene(scene) {
+					this.line.addToScene(scene);
+				}
+				setVisible(visible) {
+					this.line.setVisible(visible);
+				}
+				updateMeshes(particles) {
+					let p0 = particles[this.i0];
+					let p1 = particles[this.i1];
+
+					let to = new THREE.Vector3().subVectors(p1.X, p0.X);
+					let len = to.length();
+					let N = to.clone().multiplyScalar(1.0 / Math.max(0.0000001, len));
+
+					let lineStart = new THREE.Vector3().addVectors(p0.X, p1.X).multiplyScalar(0.5).addScaledVector(N, -0.5 * this.dist);
+					this.line.vec(lineStart, N.clone().multiplyScalar(this.dist));
+				}
+			}
+
+			//-----------------------------------------------------------------
+			// Globals
+			//-----------------------------------------------------------------
+			var particles = [];
+			var constraints = [];
+			var sumPart = null;
+
+			//-----------------------------------------------------------------
+			// App functions
+			//-----------------------------------------------------------------
+			init();
+			animate();
+
+			function init() {
+				scene = new THREE.Scene();
+
+				// Camera
+				camera = new THREE.PerspectiveCamera(45.0, window.innerWidth / window.innerHeight, 0.1, 300);
+				camera.position.set(0.0, 1.0, 8.0);
+				camera.up.set(0.0, 1.0, 0.0);
+				camera.lookAt(new THREE.Vector3(0.0, 0.0, 0.0));
+
+				// Create a DirectionalLight and turn on shadows for the light
+				const light = new THREE.DirectionalLight(0xffffff, 3.0);
+				light.position.set( -6, 20, -6 );
+				light.castShadow = true;
+				scene.add(light);
+				// Set up shadow properties for the light
+				light.shadow.bias = 0.00005;
+				light.shadow.mapSize.width = 2 * 1024;
+				light.shadow.mapSize.height = 2 * 1024;
+				light.shadow.camera.left = -5.0;
+				light.shadow.camera.bottom = -5.0;
+				light.shadow.camera.right = 5.0;
+				light.shadow.camera.top = 5.0;
+				light.shadow.camera.near = 0.01;
+				light.shadow.camera.far = 100;
+				// Create a helper for the shadow camera (optional)
+				// const helper = new THREE.CameraHelper(light.shadow.camera);
+				// scene.add(helper);
+
+				// Ambient light
+				const ambientLight = new THREE.HemisphereLight(0x88bbff, 0x779966, 0.6);
+				scene.add(ambientLight);
+
+				// Ground mesh
+				const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x062206, roughness: 0.5 });
+				const groundGeo = new THREE.PlaneGeometry(300.0, 300.0, 10, 10);
+				let groundMesh = new THREE.Mesh(groundGeo, groundMaterial);
+				groundMesh.position.y = GroundY;
+				groundMesh.rotation.x = -Math.PI / 2;
+				groundMesh.receiveShadow = true;
+				scene.add(groundMesh);
+
+				// Particles
+				const particleMaterial = new THREE.MeshStandardMaterial({ color: 0x99bbdd, roughness: 0.25 });
+				const particleOldMaterial = new THREE.MeshStandardMaterial(
+					{ transparent: true, opacity: 0.3,
+					  color: 0x99bbdd, roughness: 0.25 });
+				const velMaterial = new THREE.MeshStandardMaterial({ color: 0x991e1e, roughness: 0.25 });
+				const angMomMaterial = new THREE.MeshStandardMaterial({ color: 0x1e44aa, roughness: 0.25 });
+				particles = [];
+				for (let i = 0; i < 8; i++) {
+					particles[i] = new Particle(new THREE.Vector3(), ParticleRad, 0.03, particleMaterial, particleOldMaterial, velMaterial, angMomMaterial);
+					particles[i].addToScene(scene);
+				}
+
+				// Constraints
+				const constraintMaterial = new THREE.MeshStandardMaterial({ color: 0xcc9922, roughness: 0.25 });
+				constraints = [];
+				for (let i = 0; i < 28; i++) {
+					constraints[i] = new Constraint(0.015, constraintMaterial);
+					constraints[i].addToScene(scene);
+				}
+
+				// Additional visualization
+				const angVelMaterial = new THREE.MeshStandardMaterial({ color: 0x881688, roughness: 0.25 });
+				sumPart = new Particle(new THREE.Vector3(0.0, 0.0, 0.0), 0.0, 0.03, particleMaterial, particleOldMaterial, angVelMaterial, angMomMaterial);
+				sumPart.addToScene(scene);
+
+				// Renderer
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setClearColor(new THREE.Color(0.5, 0.7, 0.9));
+				renderer.shadowMap.enabled = true;
+				renderer.shadowMap.type = THREE.PCFShadowMap; 
+				renderer.toneMapping = THREE.ACESFilmicToneMapping;
+				renderer.toneMappingExposure = 1.0;
+				renderer.setPixelRatio(window.devicePixelRatio);
+				renderer.setSize(contentElem.clientWidth, contentElem.clientHeight);
+				contentElem.appendChild(renderer.domElement);
+
+				// Camera controls
+				controls = new OrbitControls(camera, renderer.domElement);
+				controls.enableDamping = true;
+				controls.maxPolarAngle = 0.55 * Math.PI;
+				controls.enablePan = false;
+				controls.minDistance = 3.0;
+				controls.maxDistance = 12.0;
+
+				//-------------------------------------------------------------
+				// Other controls
+
+				//-------------------------------------------------------------
+				// General DOM manipulation helpers
+				function addElement(parentElement, type, className) {
+					let element = document.createElement(type);
+					if (className) {
+						element.className = className;
+					}
+					parentElement.appendChild(element);
+					return element;
+				}
+				function addLabel(parentElement, className, text) {
+					let label = addElement(parentElement, 'label', className);
+					label.innerHTML = text;
+					return label;
+				}
+				function addInput(parentElement, className, type) {
+					let input = addElement(parentElement, 'input', className);
+					input.type = type;
+					return input;
+				}
+
+				class RangeWithTextFieldControl {
+					constructor(parentElement, name, initial, min, max, step, rangeToTextValueFn) {
+						this.name = name;
+						this.value = initial;
+						this.onchange = null;
+
+						this.rootElement = addElement(parentElement, 'div', 'control-input-slider');
+						let label0 = addLabel(this.rootElement, 'control-input-slider', '');
+						this.range = addInput(label0, 'control-range', 'range');
+						this.range.min = min;
+						this.range.max = max;
+						this.range.step = step || 'any';
+						this.range.value = this.value;
+						let label1 = addLabel(this.rootElement, '', '');
+						this.text = addInput(label1, 'control-range-text', 'text');
+						this.text.value = rangeToTextValueFn(this.value);
+
+						this.formatValueForText = (value) => {
+							const SIG_FIG = 3;
+
+							if (Math.abs(value) < 0.00001) { return '0'; } // Text box can't display really small values, anyway
+
+							let optionalMinus = value < 0 ? '-' : '';
+							value = Math.abs(value);
+
+							let leftDigit = Math.floor(Math.log10(value));
+							let figs = Math.round(value / 10.0 ** (leftDigit - SIG_FIG + 1));
+							if (leftDigit >= SIG_FIG - 1) {
+								// No significant figures to the right of the decimal point
+								return optionalMinus + figs.toString() + '0'.repeat(leftDigit - (SIG_FIG - 1));
+							} else {
+								// At least some sig figs to the right of the decimal point
+								let fixed = (figs * 10.0 ** (leftDigit - SIG_FIG + 1)).toFixed(-leftDigit + SIG_FIG - 1);
+								let chopped = fixed.replace(/\.?0+$/, ''); // Remove trailing zeroes and '.'
+								return optionalMinus + chopped;
+							}
+						};
+						this.searchValueForRange = (value) => {
+							let low = min;
+							let high = max;
+							let guess = 0.5 * (low + high);
+							for (let itr = 0; itr < 32; itr++) {
+								let guessVal = parseFloat(rangeToTextValueFn(guess));
+								if (value < guessVal) {
+									high = guess;
+								} else if (value > guessVal) {
+									low = guess;
+								} else {
+									break;
+				                }
+								guess = 0.5 * (low + high);
+							}
+							return guess;
+						};
+						this.range.addEventListener('input', () => {
+							let value = rangeToTextValueFn(this.range.value);
+							this.text.value = this.formatValueForText(value);
+							this.value = parseFloat(this.text.value);
+							if (this.onchange) { this.onchange(); }
+						});
+						this.text.addEventListener('change', () => {
+							let isNumeric = !isNaN(this.text.value) && !isNaN(parseFloat(this.text.value));
+							if (!isNumeric) { return; }
+							let textValue = parseFloat(this.text.value);
+							if (textValue < this.range.min) { this.text.value = textValue = this.range.min; }
+							if (textValue > this.range.max) { this.text.value = textValue = this.range.max; }
+							this.value = textValue;
+							this.range.value = this.searchValueForRange(this.value);
+							if (this.onchange) { this.onchange(); }
+						});
+					}
+				}
+				class ButtonControl {
+					constructor(parentElement, buttonLabel, onclick) {
+						this.onchange = null;
+
+						// this.rootElement = addElement(parentElement, 'div', 'control-input-bag');
+						// let row = addElement(this.rootElement, 'div', 'control-input-bag-row');
+						let row = parentElement;
+						let buttonLabelElement = addLabel(row, 'control-input-button', '');
+						this.rootElement = buttonLabelElement;
+						this.buttonElement = addInput(buttonLabelElement, 'control-input-button', 'button');
+						this.buttonElement.value = buttonLabel;
+						this.buttonElement.addEventListener('click', () => { onclick(); });
+					}
+				}
+				function addRangeWithTextField(parentElement, label, initial, min, max, step, rangeToTextValueFn) {
+					let row = addElement(parentElement, 'div', 'control-row');
+					let labelNode = addElement(row, 'div', 'control-label');
+					labelNode.innerHTML = `${label}:`;
+					let inputArea = addElement(row, 'div', 'control-input-area');
+					inputArea.id = label+'-input-area';
+					let ctrl = new RangeWithTextFieldControl(inputArea, label, initial, min, max, step, rangeToTextValueFn);
+					//ctrl.loadFromContainer(containers[0]);
+					return ctrl;
+				}
+
+				function resetPlayButton() { isPlaying = false; playButton.buttonElement.value = 'Play'; }
+
+				addRangeWithTextField(controlsElem, 'Time Scale', timeScale, 0.0, 10.0, 0.0, (x)=>x).onchange = function() { timeScale = this.value; };
+				addRangeWithTextField(controlsElem, 'Gravity', gravity, 0.0, 10.0, 0.0, (x)=>x).onchange = function() { gravity = this.value; };
+				addRangeWithTextField(controlsElem, 'Nodes', nodeCount, 2, 8, 1, (x)=>x).onchange = function() { nodeCount = this.value; resetPlayButton(); };
+				addRangeWithTextField(controlsElem, 'Spin', startingAngVel, -100.0, 100.0, 0.0, (x)=>x).onchange = function() {
+						startingAngVel = this.value; resetPlayButton();
+						if (Math.abs(startingAngVel) < 1.0) {
+							arrowScale = 1.0;
+						} else {
+							arrowScale = 1.0 / (Math.abs(startingAngVel) ** (2.0 / 3.0));
+						}
+					};
+				addRangeWithTextField(controlsElem, 'X-Scale', startingScaleX, 0.0001, 2.0, 0.0, (x)=>x).onchange = function() { startingScaleX = this.value; resetPlayButton(); };
+				addRangeWithTextField(controlsElem, 'Y-Scale', startingScaleY, 0.0001, 2.0, 0.0, (x)=>x).onchange = function() { startingScaleY = this.value; resetPlayButton(); };
+				addRangeWithTextField(controlsElem, 'Z-Scale', startingScaleZ, 0.0001, 2.0, 0.0, (x)=>x).onchange = function() { startingScaleZ = this.value; resetPlayButton(); };
+				addRangeWithTextField(controlsElem, 'Z-Rot', startingRotZ, 0.0, Math.PI, 0.0, (x)=>x).onchange = function() { startingRotZ = this.value; resetPlayButton(); };
+				addRangeWithTextField(controlsElem, 'X-Rot', startingRotX, 0.0, Math.PI, 0.0, (x)=>x).onchange = function() { startingRotX = this.value; resetPlayButton(); };
+
+				let buttonRow = addElement(controlsElem, 'div', 'control-row');
+				let playButton = new ButtonControl(buttonRow, 'Play', () => {
+					isPlaying = !isPlaying;
+					playButton.buttonElement.value = isPlaying ? 'Reset' : 'Play';
+				});
+				function manipulate(stretchXZ, torqueX) {
+					let CM = new THREE.Vector3(0.0, 0.0, 0.0);
+					let massSum = 0.0;
+					for (let i = 0; i < nodeCount; i++) {
+						let p = particles[i];
+						CM.addScaledVector(p.X, p.m);
+						massSum += p.m;
+					}
+					CM.multiplyScalar(1.0 / massSum);
+
+					let L0 = new THREE.Vector3(0.0, 0.0, 0.0);
+					let I = [0.0, 0.0, 0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0];
+					for (let i = 0; i < nodeCount; i++) {
+						let p = particles[i];
+						let X = p.X.clone().sub(CM);
+						L0.addScaledVector(X.clone().cross(p.V), p.m);
+						if (stretchXZ != 0.0) {
+							X.x *= stretchXZ;
+							X.z *= stretchXZ;
+							p.X.copy(X.add(CM));
+						}
+
+						I[0 + 0] += X.y * X.y + X.z * X.z;
+						I[1 + 0] -= X.x * X.y;
+						I[2 + 0] -= X.x * X.z;
+						I[0 + 3] -= X.x * X.y;
+						I[1 + 3] += X.x * X.x + X.z * X.z;
+						I[2 + 3] -= X.y * X.z;
+						I[0 + 6] -= X.x * X.z;
+						I[1 + 6] -= X.y * X.z;
+						I[2 + 6] += X.x * X.x + X.y * X.y;
+					}
+					if (torqueX != 0.0) {
+						L0.x += torqueX;
+					}
+					let omega = L0.applyMatrix3(new THREE.Matrix3().fromArray(I).invert());
+					for (let i = 0; i < nodeCount; i++) {
+						let p = particles[i];
+						p.V.copy(omega.clone().cross(p.X.clone().sub(CM)));
+					}
+					for (let i = 0; i < activeConstraintCount; i++) {
+						let c = constraints[i];
+						c.dist = particles[c.i0].X.distanceTo(particles[c.i1].X);
+					}
+				}
+				let expandButton = new ButtonControl(buttonRow, 'Expand', () => {
+					manipulate(1.25, 0.0);
+				});
+				let contractButton = new ButtonControl(buttonRow, 'Contract', () => {
+					manipulate(1.0 / 1.25, 0.0);
+				});
+				let tleftButton = new ButtonControl(buttonRow, 'Torque −X', () => {
+					manipulate(0.0, -1.0);
+				});
+				let trightButton = new ButtonControl(buttonRow, 'Torque +X', () => {
+					manipulate(0.0, 1.0);
+				});
+			}
+
+			function updateSize() {
+				let computedStyle = getComputedStyle(contentElem);
+				let width = contentElem.clientWidth - (parseFloat(computedStyle.paddingLeft) + parseFloat(computedStyle.paddingRight));   // width with padding
+				let height = width;//canvas.parentElement.clientHeight;
+
+				if (windowWidth != width || windowHeight != height) {
+					windowWidth = width;
+					windowHeight = height;
+					renderer.setSize(windowWidth, windowHeight, true);
+					camera.aspect = windowWidth / windowHeight;
+					camera.updateProjectionMatrix();
+				}
+			}
+
+			var oldTimestamp = 0.0;
+			var dtAccum = 0.0;
+			function animate(timestamp) {
+				let deltaTime = oldTimestamp == 0.0 ? (1.0 / 60.0) : (0.001 * (timestamp - oldTimestamp));
+				oldTimestamp = timestamp;
+
+				if (!isPlaying) {
+					// Set up the initial state of the particles and constraints
+					const SourceXs = X0s[nodeCount - 1];
+
+					let scale0 = new THREE.Vector3(startingScaleX, startingScaleY, startingScaleZ);
+					let eulerRot0 = new THREE.Euler(startingRotX, 0.0, startingRotZ, 'ZXY');
+
+					for (let i = 0; i < SourceXs.length; i++) {
+						let p = particles[i];
+						let X0 = new THREE.Vector3().copy(SourceXs[i]);
+						X0.multiply(scale0).applyEuler(eulerRot0);
+						p.X.copy(X0);
+						p.O.copy(X0);
+						p.V.copy(new THREE.Vector3(0.0, startingAngVel, 0.0).cross(p.X));
+						p.setVisible(true);
+					}
+					for (let i = SourceXs.length; i < particles.length; i++) {
+						particles[i].setVisible(false);
+					}
+
+					activeConstraintCount = 0;
+					for (let i = 0; i < SourceXs.length; i++) {
+						for (let j = i + 1; j < SourceXs.length; j++) {
+							let c = constraints[activeConstraintCount++];
+							c.setIdxs(particles, i, j);
+							c.setVisible(true);
+						}
+					}
+					for (let i = activeConstraintCount; i < constraints.length; i++) {
+						constraints[i].setVisible(false);
+					}
+				} else {
+					// Calculate how many substeps we need to take this frame
+					const substepsPerSecond = 5000.0;
+					// dtAccum = Math.min(dtAccum + deltaTime, (1.0 / 30.0));
+					dtAccum = Math.min(dtAccum + timeScale * deltaTime, timeScale * (1.0 / 30.0));
+					let substeps = Math.floor(dtAccum * substepsPerSecond);
+					dtAccum -= substeps / substepsPerSecond;
+
+					// Perform substeps
+					let dt = 1.0 / substepsPerSecond;
+					for (let substep = 0; substep < substeps; substep++) {
+						// Predict
+						for (let i = 0; i < nodeCount; i++) {
+							let p = particles[i];
+							p.O.copy(p.X);
+							p.V.y -= gravity * dt;
+							p.X.addScaledVector(p.V, dt);
+						}
+
+						// Constrain
+						for (let i = 0; i < nodeCount; i++) {
+							let p = particles[i];
+							if (p.X.y < GroundY + ParticleRad) {
+								p.O.y = p.X.y = GroundY + ParticleRad;
+							}
+						}
+						for (let i = 0; i < activeConstraintCount; i++) {
+							constraints[i].constrain(particles);
+						}
+
+						// Update velocity
+						for (let i = 0; i < nodeCount; i++) {
+							let p = particles[i];
+							p.V.copy(p.X).sub(p.O).multiplyScalar(1.0 / dt);
+						}
+					}
+				}
+
+				// Find the current center of mass
+				let CM = new THREE.Vector3(0.0, 0.0, 0.0);
+				let massSum = 0.0;
+				for (let i = 0; i < nodeCount; i++) {
+					CM.addScaledVector(particles[i].X, particles[i].m);
+					massSum += particles[i].m;
+				}
+				CM.multiplyScalar(1.0 / massSum);
+
+				for (let p of particles) {
+					p.updateMeshes(CM);
+				}
+				for (let c of constraints) {
+					c.updateMeshes(particles);
+				}
+
+				// Generate total angular momentum
+				let L = new THREE.Vector3(0.0, 0.0, 0.0);
+				let I = [0.0, 0.0, 0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0];
+				for (let i = 0; i < nodeCount; i++) {
+					let p = particles[i];
+					let X = p.X.clone().sub(CM);
+					L.addScaledVector(X.clone().cross(p.V), p.m);
+					I[0 + 0] += X.y * X.y + X.z * X.z;
+					I[1 + 0] -= X.x * X.y;
+					I[2 + 0] -= X.x * X.z;
+					I[0 + 3] -= X.x * X.y;
+					I[1 + 3] += X.x * X.x + X.z * X.z;
+					I[2 + 3] -= X.y * X.z;
+					I[0 + 6] -= X.x * X.z;
+					I[1 + 6] -= X.y * X.z;
+					I[2 + 6] += X.x * X.x + X.y * X.y;
+				}
+				let Ii = new THREE.Matrix3().fromArray(I).invert();
+				sumPart.velLine.vec(CM, L.clone().applyMatrix3(Ii).multiplyScalar(arrowScale));
+				sumPart.angLine.vec(CM, L.clone().multiplyScalar(arrowScale));
+
+				for (let col = 0; col < 3; col++) {
+					for (let row = 0; row < 3; row++) {
+						IMatrixElems[row + col * 3].innerHTML = I[row + col * 3].toFixed(1);
+					}
+				}
+
+				// Calculate total linear kinetic energy and rotational kinetic energy
+				let K_l = 0.0;
+				for (let i = 0; i < nodeCount; i++) {
+					let p = particles[i];
+					K_l += (1.0 / 2.0) * p.m * p.V.dot(p.V);
+				}
+				let K_r = (1.0 / 2.0) * L.clone().applyMatrix3(Ii).dot(L);
+				K_lElem.innerHTML = K_l.toFixed(2);
+				let VCM = new THREE.Vector3(0.0, 0.0, 0.0);
+				for (let i = 0; i < nodeCount; i++) {
+					VCM.addScaledVector(particles[i].V, particles[i].m);
+				}
+				VCM.multiplyScalar(1.0 / massSum);
+				K_r += (1.0 / 2.0) * massSum * VCM.dot(VCM);
+				K_rElem.innerHTML = K_r.toFixed(2);
+
+				render();
+
+				requestAnimationFrame(animate);
+			}
+
+			function render() {
+				updateSize();
+
+				controls.update();
+
+				renderer.render( scene, camera );
+			}
+		</script>
+	</body>
+</html>
