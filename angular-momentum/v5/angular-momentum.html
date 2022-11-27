@@ -533,7 +533,7 @@
 				addRangeWithTextField(controlsElem, 'Time Scale', timeScale, 0.0, 10.0, 0.0, (x)=>x).onchange = function() { timeScale = this.value; };
 				addRangeWithTextField(controlsElem, 'Gravity', gravity, 0.0, 10.0, 0.0, (x)=>x).onchange = function() { gravity = this.value; };
 				addRangeWithTextField(controlsElem, 'Nodes', nodeCount, 2, 8, 1, (x)=>x).onchange = function() { nodeCount = this.value; resetPlayButton(); };
-				addRangeWithTextField(controlsElem, 'Spin', startingAngVel, -100.0, 100.0, 0.0, (x)=>x).onchange = function() {
+				addRangeWithTextField(controlsElem, 'Spin', startingAngVel, -50.0, 50.0, 0.0, (x)=>x).onchange = function() {
 						startingAngVel = this.value; resetPlayButton();
 						if (Math.abs(startingAngVel) < 1.0) {
 							arrowScale = 1.0;
@@ -702,12 +702,15 @@
 
 				// Find the current center of mass
 				let CM = new THREE.Vector3(0.0, 0.0, 0.0);
+				let VCM = new THREE.Vector3(0.0, 0.0, 0.0);
 				let massSum = 0.0;
 				for (let i = 0; i < nodeCount; i++) {
 					CM.addScaledVector(particles[i].X, particles[i].m);
+					VCM.addScaledVector(particles[i].V, particles[i].m);
 					massSum += particles[i].m;
 				}
 				CM.multiplyScalar(1.0 / massSum);
+				VCM.multiplyScalar(1.0 / massSum);
 
 				for (let p of particles) {
 					p.updateMeshes(CM);
@@ -749,14 +752,8 @@
 					let p = particles[i];
 					K_l += (1.0 / 2.0) * p.m * p.V.dot(p.V);
 				}
-				let K_r = (1.0 / 2.0) * L.clone().applyMatrix3(Ii).dot(L);
+				let K_r = (1.0 / 2.0) * (L.clone().applyMatrix3(Ii).dot(L) + massSum * VCM.dot(VCM));
 				K_lElem.innerHTML = K_l.toFixed(2);
-				let VCM = new THREE.Vector3(0.0, 0.0, 0.0);
-				for (let i = 0; i < nodeCount; i++) {
-					VCM.addScaledVector(particles[i].V, particles[i].m);
-				}
-				VCM.multiplyScalar(1.0 / massSum);
-				K_r += (1.0 / 2.0) * massSum * VCM.dot(VCM);
 				K_rElem.innerHTML = K_r.toFixed(2);
 
 				render();
