@@ -44,7 +44,7 @@
 				</div>
 			</div>
 			<div id="kinetic-energy" style="display: flex; flex-direction: column;">
-				<div style="margin-left:0.5em">K<sub>L</sub>=<span id="K_l"></span></div>
+				<div style="margin-left:0.5em">K<sub>P</sub>=<span id="K_p"></span></div>
 				<div style="margin-left:0.5em">K<sub>R</sub>=<span id="K_r"></span></div>
 			</div>
 		</div>
@@ -85,7 +85,7 @@
 					IMatrixElems[row + col * 3] = document.getElementById(`I-matrix-${row}-${col}`);
 				}
 			}
-			var K_lElem = document.getElementById('K_l');
+			var K_pElem = document.getElementById('K_p');
 			var K_rElem = document.getElementById('K_r');
 
 			const GroundY = -2.0;
@@ -747,14 +747,14 @@
 				}
 
 				// Calculate total linear kinetic energy and rotational kinetic energy
-				let K_l = 0.0;
+				let K_p = 0.0;
 				for (let i = 0; i < nodeCount; i++) {
 					let p = particles[i];
-					K_l += (1.0 / 2.0) * p.m * p.V.dot(p.V);
+					K_p += (1.0 / 2.0) * p.m * p.V.dot(p.V);
 				}
 				let K_r = (1.0 / 2.0) * (L.clone().applyMatrix3(Ii).dot(L) + massSum * VCM.dot(VCM));
-				K_lElem.innerHTML = K_l.toFixed(2);
-				K_rElem.innerHTML = K_r.toFixed(2);
+				K_pElem.innerHTML = K_p.toFixed(4);
+				K_rElem.innerHTML = K_r.toFixed(4);
 
 				render();
 
