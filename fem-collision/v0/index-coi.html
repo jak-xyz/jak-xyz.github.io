@@ -25,7 +25,7 @@ const MEMORY_SIZE = 88080384, STACK_SIZE = 65536, MAX_WORKER_THREADS = 16;
 <div id="curtain" class="on"></div>
 <div id="content">
 </div>
-<div id="topbar">
+<div id="topbar" class="topbar">
     <div class="topbar-entry" style="text-align: left">
         <button type="button" onclick="main.rpc('Reset');">(R)eset</button>
         <button type="button" onclick="return tweak.toggleAllLinks();">Toggle (L)inks</button>
@@ -66,10 +66,10 @@ const MEMORY_SIZE = 88080384, STACK_SIZE = 65536, MAX_WORKER_THREADS = 16;
 </div>
 <div id="explainer-text">
     <p>
-        This is a test of FEM collision in WASM.
+        This is a demonstration of collision detection on FEM soft bodies simulated with XPBD. For a detailed explanations of many of the controls, refer to this earlier work: <a href="https://jak-xyz.github.io/xpbd-fem/">https://jak-xyz.github.io/xpbd-fem</a>.
     </p>
     <p>
-        <button onclick="tweak.resetTweaks()">Reset</button>
+        Settings are saved between sessions. To restore factory defaults, press this button: <button onclick="tweak.resetTweaks()">Reset Settings</button>
     </p>
 
     <p id="text-toggle" style="margin: 0px auto; text-align: center; font-size: 1rem;" onclick="return toggleExplainerText();">

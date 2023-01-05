@@ -19,7 +19,7 @@ function initWasm(wasmUrl, memory, threadId, STACK_SIZE) {
 	env['asinh'] = function asinh(x) { return Math.asinh(x); };
 	env['atan'] = function atan(x) { return Math.atan(x); };
 	env['atanh'] = function atanh(x) { return Math.atanh(x); };
-	env['atan2'] = function atan2(x, y) { return Math.atan2(x, y); };
+	env['atan2'] = function atan2(y, x) { return Math.atan2(y, x); };
 	env['cos'] = function cos(x) { return Math.cos(x); };
 	env['cosh'] = function cosh(x) { return Math.cosh(x); };
 	env['exp'] = function exp(x) { return Math.exp(x); };
@@ -43,6 +43,13 @@ function initWasm(wasmUrl, memory, threadId, STACK_SIZE) {
 	env['performance_now'] = function performance_now() {
 		return performance.now();
 	};
+	env['tweak_pushData'] = function tweak_pushData(tweakAddr) {
+		// Grab the serialized tweak data information and pass it back to the main thread
+		let size = (new Uint32Array(HEAPU8.buffer, tweakAddr, 1))[0];
+		let tweakResult = HEAPU8.subarray(tweakAddr, tweakAddr + size).slice();
+		postMessage({ type: MSG_TWEAK_RESULT, tweakResult });
+	};
+
 	// Actually load up the code
 	wasmInstance = null;
 	//console.log(`Worker: Attempting to load wasm on thread ${threadId} ...`);
@@ -55,12 +62,7 @@ function initWasm(wasmUrl, memory, threadId, STACK_SIZE) {
 				wasmInstance = result.instance;
 				if (threadId == 0) {
 					wasmInstance.exports.wasm_entry();
-		            wasmInstance.exports.Initialize();
-		            // Grab the serialized tweak data information and pass it back to the main thread
-					let tweakAddr = wasmInstance.exports.GetTweakPtr();
-					let size = (new Uint32Array(HEAPU8.buffer, tweakAddr, 1))[0];
-					let tweakResult = HEAPU8.subarray(tweakAddr, tweakAddr + size).slice();
-	            	postMessage({type: MSG_TWEAK_RESULT, tweakResult});
+					wasmInstance.exports.Initialize();
 				} else {
 					wasmInstance.exports.SetThreadShadowStackPointer(threadId, STACK_SIZE);
 		            wasmInstance.exports.ThreadMain(threadId);

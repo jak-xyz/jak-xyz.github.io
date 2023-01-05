@@ -4,6 +4,9 @@ var tweak = {};
 
 //-----------------------------------------------------------------------------
 // Constants that must be kept in sync with C++
+const TweakMsg_Init = 0;
+const TweakMsg_Update = 1;
+
 const Columns_Single = 0;
 const Columns_Double = 1;
 
@@ -48,15 +51,16 @@ function loadTweaks() {
 	}
 }
 
-var controls = [];
+var controlMap = {};
+var controlRows = [];
 var controlGroups = [];
 function setMode(mode) {
 	let select = document.getElementById('mode-select');
 	select.value = 31 - Math.clz32(mode);
 	let showRightSide = mode == Demo_Sim;
-	for (let i = 0; i < controls.length; i++) {
-		controls[i].control.style.display = (controls[i].modeMask & mode) ? 'flex' : 'none';
-		let inputArea = controls[i].control.querySelector('.control-input-area');
+	for (let i = 0; i < controlRows.length; i++) {
+		controlRows[i].control.style.display = (controlRows[i].modeMask & mode) ? 'flex' : 'none';
+		let inputArea = controlRows[i].control.querySelector('.control-input-area');
 		for (let j = 1; j < inputArea.childNodes.length; j++) {
 			inputArea.childNodes[j].style.visibility = showRightSide ? 'visible' : 'hidden';
 		}
@@ -404,15 +408,25 @@ class RangeWithTextFieldControl {
 }
 
 class ButtonsControl {
-	constructor(parentElement, buttonLabel, onclick) {
+	constructor(parentElement, name, side, linkBox, buttonLabelOnclickPairRows) {
+		this.name = name;
 		this.onchange = null;
 
 		this.rootElement = addElement(parentElement, 'div', 'control-input-bag');
-		let row = addElement(this.rootElement, 'div', 'control-input-bag-row');
-		let buttonLabelNode = addLabel(row, 'control-input-button', '');
-		let buttonNode = addInput(buttonLabelNode, 'control-input-button', 'button');
-		buttonNode.value = buttonLabel;
-		buttonNode.addEventListener('click', () => { onclick(); });
+		this.buttons = [];
+		buttonLabelOnclickPairRows.forEach(pairs => {
+			let row = addElement(this.rootElement, 'div', 'control-input-bag-row');
+			pairs.forEach(pair => {
+				let buttonLabelNode = addLabel(row, 'control-input-button', '');
+				let buttonNode = addInput(buttonLabelNode, 'control-input-button', 'button');
+				buttonNode.value = pair.buttonLabel;
+				buttonNode.addEventListener('click', () => {
+					pair.onclick(side);
+					if (side == 0 && linkBox.link && linkBox.link.checked) { pair.onclick(1); }
+				});
+				this.buttons.push(buttonNode);
+			});
+		});
 	}
 	storeState() { return 0; }
 	loadState(state) {}
@@ -432,15 +446,17 @@ function pushValue(basePtr, containerEntry) {
 }
 
 function addControl(parentElement, label, modeMask, createControlFn) {
-	let row = addElement(parentElement, 'div', `control-row ${columns == Columns_Single ? 'control-row-single-column' : ''}`);
-	controls.push({control: row, modeMask});
+	let row = addElement(parentElement, 'div', 'control-row');
+	controlRows.push({control: row, modeMask});
 	let labelNode = addElement(row, 'div', 'control-label');
 	labelNode.innerHTML = `${label}:`;
 
 	let inputArea = addElement(row, 'div', `control-input-area ${columns == Columns_Single ? 'control-input-area-single-column' : ''}`);
 	inputArea.id = label+'-input-area';
 
-	let ctrl0 = createControlFn(inputArea, 0);
+	let ctrl0 = null, ctrl1 = null;
+
+	ctrl0 = createControlFn(inputArea, 0);
 	ctrl0.loadFromContainer(containers[0]);
 
 	if (columns == Columns_Single) {
@@ -460,7 +476,7 @@ function addControl(parentElement, label, modeMask, createControlFn) {
 		let linkText = addElement(linkLabel, 'span', 'link-text');
 		links.push({ linkCheckbox, label }); // Hackily push the link into the global link list
 
-		let ctrl1 = createControlFn(inputArea, 1);
+		ctrl1 = createControlFn(inputArea, 1);
 		ctrl1.loadFromContainer(containers[1]);
 
 		let undoState = null;
@@ -505,6 +521,9 @@ function addControl(parentElement, label, modeMask, createControlFn) {
 			storeTweaks();
 		});
 	}
+
+	console.assert(!controlMap.hasOwnProperty(label), `Duplicate tweak label: ${label}`);
+	controlMap[label] = { ctrl0, ctrl1 };
 }
 
 function addCheckbox(parentElement, label, modeMask, flags, checkboxLabels) {
@@ -531,17 +550,14 @@ function addRangeWithTextField(parentElement, label, modeMask, min, max, step, r
 	});
 }
 
-function addButton(parentElement, label, modeMask, buttonLabel, onclick) {
-	let buttons = [];
-	let linkBox = {};
+function addButtons(parentElement, label, modeMask, buttonLabelOnclickPairRows) {
+	let linkBox = { link: null };
 	addControl(parentElement, label, modeMask, (parent, side) => {
-		buttons[side] = new ButtonsControl(parent, buttonLabel, () => {
-			onclick(side);
-			if (side == 0 && linkBox.link.checked) { onclick(1); }
-		});
-		return buttons[side];
+		return new ButtonsControl(parent, label, side, linkBox, buttonLabelOnclickPairRows);
 	});
-	linkBox.link = links[links.length - 1].linkCheckbox;
+	if (links.length > 0) {
+		linkBox.link = links[links.length - 1].linkCheckbox;
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -708,19 +724,31 @@ function ingestTweakResult(arrayBuffer) {
 	let size = s.readUint32();
 	console.assert(size == arrayBuffer.byteLength);
 
+	let msg = s.readUint32();
 	version = s.readUint32();
 	columns = s.readUint32();
 	containerPtrs = [s.readPtr(), s.readPtr()];
-	containers = [{}, {}];
+	if (msg == TweakMsg_Init) {
+		containers = [{}, {}];
 
-	if (columns == Columns_Single) {
-		sleeveElem.classList.add('control-sleeve-single-column');
-		let topbarElem = document.getElementById('topbar');
-		topbarElem.style.width = '22rem';
-		topbarElem.style.padding = '0 0.5rem 0 0';
-    }
+		if (columns == Columns_Single) {
+			sleeveElem.classList.add('control-sleeve-single-column');
+			let topbarElem = document.getElementById('topbar');
+			topbarElem.classList.add('topbar-single-column');
+		}
 
-	loadTweaks();
+		loadTweaks();
+	}
+
+	// For when msg == TweakMsg_Init:
+	let updateControl = function (label, value0, value1) {
+		let ctrls = controlMap[label];
+		console.assert(ctrls, `TweakMsg_Update: No control named ${label}`);
+		containers[0][label].value = value0;
+		containers[1][label].value = value1;
+		if (ctrls.ctrl0) { ctrls.ctrl0.loadFromContainer(containers[0]); }
+		if (ctrls.ctrl1) { ctrls.ctrl1.loadFromContainer(containers[1]); }
+	};
 
 	let currentGroup = sleeveElem;
 
@@ -730,7 +758,9 @@ function ingestTweakResult(arrayBuffer) {
 		switch (itemType) {
 			case Tweak_Group: {
 				let modeMask = s.readUint32();
-				currentGroup = addControlGroup(sleeveElem, modeMask);
+				if (msg == TweakMsg_Init) {
+					currentGroup = addControlGroup(sleeveElem, modeMask);
+				}
 			} break;
 			case Tweak_Checkboxes: {
 				let modeMask = s.readUint32();
@@ -761,14 +791,18 @@ function ingestTweakResult(arrayBuffer) {
 				initialValue0 = initialValue0 >> shift;
 				initialValue1 = initialValue1 >> shift;
 
-				let value0 = containers[0][label] ? containers[0][label].value : initialValue0;
-				let value1 = containers[1][label] ? containers[1][label].value : initialValue1;
-				containers[0][label] = { type: Type_Uint32, value: value0, offset, shift, mask };
-				containers[1][label] = { type: Type_Uint32, value: value1, offset, shift, mask };
-				pushValue(containerPtrs[0], containers[0][label]);
-				pushValue(containerPtrs[1], containers[1][label]);
+				if (msg == TweakMsg_Init) {
+					let value0 = containers[0][label] ? containers[0][label].value : initialValue0;
+					let value1 = containers[1][label] ? containers[1][label].value : initialValue1;
+					containers[0][label] = { type: Type_Uint32, value: value0, offset, shift, mask };
+					containers[1][label] = { type: Type_Uint32, value: value1, offset, shift, mask };
+					pushValue(containerPtrs[0], containers[0][label]);
+					pushValue(containerPtrs[1], containers[1][label]);
 
-				addCheckbox(currentGroup, label, modeMask, flags, checkboxLabels);
+					addCheckbox(currentGroup, label, modeMask, flags, checkboxLabels);
+				} else if (msg == TweakMsg_Update) {
+					updateControl(label, initialValue0, initialValue1);
+				}
 			} break;
 			case Tweak_RadioButtons: {
 				let modeMask = s.readUint32();
@@ -791,14 +825,18 @@ function ingestTweakResult(arrayBuffer) {
 				let initialValue0 = s.readUint32();
 				let initialValue1 = s.readUint32();
 
-				let value0 = containers[0][label] ? containers[0][label].value : initialValue0;
-				let value1 = containers[1][label] ? containers[1][label].value : initialValue1;
-				containers[0][label] = { type: Type_Uint32, value: value0, offset, shift, mask };
-				containers[1][label] = { type: Type_Uint32, value: value1, offset, shift, mask };
-				pushValue(containerPtrs[0], containers[0][label]);
-				pushValue(containerPtrs[1], containers[1][label]);
+				if (msg == TweakMsg_Init) {
+					let value0 = containers[0][label] ? containers[0][label].value : initialValue0;
+					let value1 = containers[1][label] ? containers[1][label].value : initialValue1;
+					containers[0][label] = { type: Type_Uint32, value: value0, offset, shift, mask };
+					containers[1][label] = { type: Type_Uint32, value: value1, offset, shift, mask };
+					pushValue(containerPtrs[0], containers[0][label]);
+					pushValue(containerPtrs[1], containers[1][label]);
 
-				addRadioButtons(currentGroup, label, modeMask, buttonLabels);
+					addRadioButtons(currentGroup, label, modeMask, buttonLabels);
+				} else if (msg == TweakMsg_Update) {
+					updateControl(label, initialValue0, initialValue1);
+				}
 			} break;
 			case Tweak_Dropdown: {
 				let modeMask = s.readUint32();
@@ -814,14 +852,18 @@ function ingestTweakResult(arrayBuffer) {
 				let initialValue0 = s.readUint32();
 				let initialValue1 = s.readUint32();
 
-				let value0 = containers[0][label] ? containers[0][label].value : initialValue0;
-				let value1 = containers[1][label] ? containers[1][label].value : initialValue1;
-				containers[0][label] = { type: Type_Uint32, value: value0, offset, shift, mask };
-				containers[1][label] = { type: Type_Uint32, value: value1, offset, shift, mask };
-				pushValue(containerPtrs[0], containers[0][label]);
-				pushValue(containerPtrs[1], containers[1][label]);
+				if (msg == TweakMsg_Init) {
+					let value0 = containers[0][label] ? containers[0][label].value : initialValue0;
+					let value1 = containers[1][label] ? containers[1][label].value : initialValue1;
+					containers[0][label] = { type: Type_Uint32, value: value0, offset, shift, mask };
+					containers[1][label] = { type: Type_Uint32, value: value1, offset, shift, mask };
+					pushValue(containerPtrs[0], containers[0][label]);
+					pushValue(containerPtrs[1], containers[1][label]);
 
-				addDropdown(currentGroup, label, modeMask, buttonLabels);
+					addDropdown(currentGroup, label, modeMask, buttonLabels);
+				} else if (msg == TweakMsg_Update) {
+					updateControl(label, initialValue0, initialValue1);
+				}
 			} break;
 			case Tweak_RangeWithTextField: {
 				let modeMask = s.readUint32();
@@ -845,26 +887,46 @@ function ingestTweakResult(arrayBuffer) {
 					mapping.fn = (x) => { return Math.round(oldMappingFn(x)); };
 				}
 
-				let value0 = containers[0][label] ? containers[0][label].value : initialValue[0];
-				let value1 = containers[1][label] ? containers[1][label].value : initialValue[1];
-				containers[0][label] = { type: valueType, value: value0, offset, shift: 0, mask: 0xffffffff };
-				containers[1][label] = { type: valueType, value: value1, offset, shift: 0, mask: 0xffffffff };
-				pushValue(containerPtrs[0], containers[0][label]);
-				pushValue(containerPtrs[1], containers[1][label]);
+				if (msg == TweakMsg_Init) {
+					let value0 = containers[0][label] ? containers[0][label].value : initialValue[0];
+					let value1 = containers[1][label] ? containers[1][label].value : initialValue[1];
+					containers[0][label] = { type: valueType, value: value0, offset, shift: 0, mask: 0xffffffff };
+					containers[1][label] = { type: valueType, value: value1, offset, shift: 0, mask: 0xffffffff };
+					pushValue(containerPtrs[0], containers[0][label]);
+					pushValue(containerPtrs[1], containers[1][label]);
 
-				addRangeWithTextField(currentGroup, label, modeMask, inMin, inMax, step, mapping.fn);
+					addRangeWithTextField(currentGroup, label, modeMask, inMin, inMax, step, mapping.fn);
+				} else if (msg == TweakMsg_Update) {
+					updateControl(label, initialValue[0], initialValue[1]);
+				}
 			} break;
 			case Tweak_Button: {
 				let modeMask = s.readUint32();
 				let label = s.readString();
-				let buttonLabel = s.readString();
-				let onclickFnName = s.readString();
-				let onclick = (side) => { main.rpc(onclickFnName, side); };
-
-				addButton(currentGroup, label, modeMask, buttonLabel, onclick);
+				let buttonLabelFnNamePairCount = s.readUint32();
+				let buttonLabelOnclickPairRows = [[]];
+				let row = buttonLabelOnclickPairRows[0];
+				for (let i = 0; i < buttonLabelFnNamePairCount; i++) {
+					let buttonLabel = s.readString();
+					let onclickFnName = s.readString();
+					if (buttonLabel == '\n') {
+						buttonLabelOnclickPairRows.push([]);
+						row = buttonLabelOnclickPairRows[buttonLabelOnclickPairRows.length - 1];
+					} else {
+						let onclick = (side) => { main.rpc(onclickFnName, side); };
+						row.push({ buttonLabel, onclick });
+					}
+				}
+				if (msg == TweakMsg_Init) {
+					addButtons(currentGroup, label, modeMask, buttonLabelOnclickPairRows);
+				}
 			} break;
 			default:
 				console.error(`Unknown type ${itemType}`);
+		}
+
+		if (msg == TweakMsg_Update) {
+			storeTweaks();
 		}
 	}
 

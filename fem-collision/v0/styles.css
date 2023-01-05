@@ -27,13 +27,13 @@ body {
   button { font-size: 1.98170731vw; }
 }
 */
-@media screen and (min-width: 382px) {
+@media screen and (min-width: 414px) {
   html, select { font-size: 16px; }
   button { font-size: 13px; }
 }
-@media screen and (max-width: 382px) {
-  html, select { font-size: 4.18848167vw; }
-  button { font-size: 3.40314134vw; }
+@media screen and (max-width: 414px) {
+  html, select { font-size: 3.86473429vw; }
+  button { font-size: 3.14009660vw; }
 }
 
 div {
@@ -65,7 +65,7 @@ canvas {
   transition: visibility 0s 0.085s, opacity 0.085s linear;
 }
 
-#content, #topbar, #explainer-text, #controls {
+#content, #explainer-text, #controls {
   width: 44rem;
   max-width: 100%;
   margin: 0 auto;
@@ -79,7 +79,16 @@ canvas {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.topbar {
+  width: 44rem;
+  max-width: 100%;
+  margin: 0 auto;
   padding: 0.0rem 0.5rem;
+}
+.topbar-single-column {
+  width: 24rem;
+  padding: 0 0.5rem 0 0;
 }
 
 .topbar-entry {
@@ -118,7 +127,7 @@ b {
 }
 .control-sleeve-single-column {
   width: 100%;
-  max-width: 22rem;
+  max-width: 24rem;
   margin: 0 auto;
   padding: 0 0.5rem 0 0;
 }
@@ -128,9 +137,6 @@ b {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-}
-.control-row-single-column {
-    justify-content: left;
 }
 
 .control-label {
@@ -146,7 +152,7 @@ b {
   width: 31.3rem;
 }
 .control-input-area-single-column {
-  width: 18.0rem;
+  width: 15.65rem;
   padding: 0 0.5rem 0 0;
 }
 #Element\ Type-input-area.control-input-area label {
