@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="stylesheet" href="styles.css">
+<script>
+const MEMORY_SIZE = 88080384, STACK_SIZE = 65536, MAX_WORKER_THREADS = 2;
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+
+<title>FEM Collision Demo</title>
+<meta name="description" content="Demo of FEM Collision in WASM">
+<meta property="og:title" content="FEM Collision Demo">
+<meta property="og:description" content="Demo of FEM Collision in WASM">
+<meta property="og:locale" content="en_US">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jak-xyz.github.io/fem-collision">
+<link rel="canonical" href="https://jak-xyz.github.io/fem-collision">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🙏</text></svg>">
+
+<meta name="theme-color" content="#FFFFFF">
+</head>
+<body>
+<div id="curtain" class="on"></div>
+<div id="content">
+</div>
+<div id="topbar" class="topbar">
+    <div class="topbar-entry" style="text-align: left">
+        <button type="button" onclick="main.rpc('Reset');">(R)eset</button>
+        <!--<button type="button" onclick="return tweak.toggleAllLinks();">Toggle (L)inks</button>-->
+    </div>
+    <div class="topbar-entry" style="text-align: center">
+        <!--
+        <label id="mode-select-label" for="mode-select">Mode:&ensp;</label>
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() {
+                let label = document.getElementById('mode-select-label');
+                let dropdown = new DropdownControl(label, 0, 0, 'mode-select',
+                    ['Sim', 'Step', 'Plasticity', 'Explore']);
+                dropdown.onchange = (value) => {
+                    setDemoMode(1 << parseInt(value));
+                };
+                dropdown.selectNode.id = 'mode-select';
+                dropdown.selectNode.style.width = '6em';
+            });
+        </script>
+        -->
+    </div>
+    <div class="topbar-entry" style="text-align: right">
+        <span id="text-toggle" onclick="return toggleExplainerText();">Show explainer text</span>
+        <script>
+            function toggleExplainerText() {
+                let toggle = document.getElementById('text-toggle');
+                let explainer = document.getElementById('explainer-text');
+                if (explainer.style.display != 'block') {
+                    toggle.textContent = 'Hide explainer text';
+                    explainer.style.display = 'block';
+                } else {
+                    toggle.textContent = 'Show explainer text';
+                    explainer.style.display = 'none';
+                }
+            }
+        </script>
+    </div>
+</div>
+<div id="explainer-text">
+    <p>
+        This is a demonstration of collision detection on FEM soft bodies simulated with XPBD. For getting a quick taste of the demo, I recommend just clicking the preset buttons at the top of the controls, as well as maybe the "Smalls," "Bigs," and "Longs" sliders, which control how many of each type of object are simulated at once. The more adventerous explorer can attempt to change the rest of the controls below. For a detailed explanations of many of the controls, refer to this earlier work: <a href="https://jak-xyz.github.io/xpbd-fem/">https://jak-xyz.github.io/xpbd-fem</a>.
+    </p>
+    <p>
+        Settings are saved between sessions. To restore factory defaults, press this button: <button onclick="tweak.resetTweaks()">Reset Settings</button>
+    </p>
+
+    <p id="text-toggle" style="margin: 0px auto; text-align: center; font-size: 1rem;" onclick="return toggleExplainerText();">
+        Hide explainer text
+    </p>
+</div>
+<div id="controls">
+    <script>
+        document.addEventListener('DOMContentLoaded', function (event) {
+            document.addEventListener('keydown', function (event) {
+                // We never want to look at input if the user is typing in a text box
+                if (document.activeElement.tagName.toLowerCase() == 'input' &&
+                    document.activeElement.type.toLowerCase() == 'text') { return; }
+
+                if (event.key.toUpperCase() == 'R') {
+                    main.rpc('Reset');
+                }
+                //if (event.key.toUpperCase() == 'L') {
+                //    tweak.toggleAllLinks();
+                //}
+
+                // Furthermore, certain inputs we don't want to look at if the user has anything selected
+                if (document.activeElement != document.body) { return; }
+            }, true);
+        });
+    </script>
+</div>
+<script src="main.js"></script>
+<script src="tweak.js"></script>
+</body>
+</html>

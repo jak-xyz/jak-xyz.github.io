@@ -1,0 +1,342 @@
+html { box-sizing: border-box; }
+*, *:before, *:after { box-sizing: inherit; }
+body { -webkit-font-smoothing: antialiased; }
+input, button, textarea, select { font: inherit; }
+
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  background: #fff;
+  color: #000;
+  font-family: Arial,sans-serif !important;
+  -webkit-text-size-adjust: 100%;
+}
+/*
+@media screen and (min-width: 656px) {
+  html, select { font-size: 16px; }
+  button { font-size: 13px; }
+}
+@media screen and (max-width: 656px) {
+  html, select { font-size: 2.43902439vw; }
+  button { font-size: 1.98170731vw; }
+}
+*/
+@media screen and (min-width: 414px) {
+  html, select { font-size: 16px; }
+  button { font-size: 13px; }
+}
+@media screen and (max-width: 414px) {
+  html, select { font-size: 3.86473429vw; }
+  button { font-size: 3.14009660vw; }
+}
+
+div {
+  display: block;
+}
+
+canvas {
+  width: 100%;
+}
+
+#curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #fff;
+  z-index: 1000;
+}
+#curtain.on {
+  visibility: visible;
+  opacity: 1;
+}
+#curtain.off {
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0s 0.085s, opacity 0.085s linear;
+}
+
+#content, #explainer-text, #controls {
+  width: 44rem;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0.5rem;
+}
+#content, #topbar {
+  user-select: none;
+  -webkit-user-select: none;
+}
+#topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.topbar {
+  width: 44rem;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0.0rem 0.5rem;
+}
+.topbar-single-column {
+  width: 24rem;
+  padding: 0 0.5rem 0 0;
+}
+
+.topbar-entry {
+}
+
+#mode-select-label {
+  display: flex;
+  align-items: center;
+}
+#mode-select-label * { margin: 0 }
+
+#text-toggle {
+  cursor:pointer;
+  text-decoration:underline;
+  color: #444;
+}
+
+#explainer-text {
+  display: none;
+  font-size: 1.1em;
+  line-height: 1.45em;
+  width: 41rem;
+  padding: 0.0rem 1.5rem;
+}
+@media screen and (max-width: 550px) { #explainer-text { font-size: 1.2em; line-height: 1.5em; } }
+@media screen and (max-width: 450px) { #explainer-text { font-size: 1.4em; line-height: 1.6em; } }
+@media screen and (max-width: 360px) { #explainer-text { font-size: 1.6em; line-height: 1.7em; } }
+
+b {
+  font-weight: normal;
+  text-shadow: 0px 0.2px, 0.2px 0px, 0.14px 0.14px;
+}
+
+.control-sleeve {
+  width: 40em;
+}
+.control-sleeve-single-column {
+  width: 100%;
+  max-width: 24rem;
+  margin: 0 auto;
+  padding: 0 0.5rem 0 0;
+}
+
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.control-label {
+  text-align: right;
+  width: 7.75em;
+  margin: 0 0.45rem 0 0;
+}
+
+.control-input-area {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 31.3rem;
+}
+.control-input-area-single-column {
+  width: 15.65rem;
+  padding: 0 0.5rem 0 0;
+}
+#Element\ Type-input-area.control-input-area label {
+  letter-spacing: -0.06rem;
+  margin: 0 0.15rem;
+}
+#Element\ Type-input-area.control-input-area input {
+  margin-left: 0.175rem;
+}
+
+.control-input-linked {
+  opacity: 0.333;
+}
+
+.control-input-bag {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0.25rem 0;
+}
+.control-input-bag-row, .control-input-dropdown, .control-input-slider {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.control-input-bag-row {
+  flex-wrap: wrap;
+}
+.control-input-dropdown {
+  z-index: 1;
+  align-items: flex-start;
+  margin: 0.25rem 0;
+}
+.control-input-button {
+}
+
+.control-input-bag-contents {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 0.25rem;
+}
+.control-input-bag-contents input[type="radio"], input[type="checkbox"] {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin: 0 0 0 0.25rem;
+}
+
+.control-select {
+  width: 10em;
+  position: relative;
+  overflow: hidden;
+  scrollbar-width: none;
+}
+.control-option {
+  height: 1.25em;
+  padding: 0 0 0 4px;
+}
+
+.control-range {
+  width: 100%;
+  margin: 0.25rem 0;
+  height: 0.5rem;
+}
+/*@NOTE: To use ::-webkit-slider-thumb, you need to set -webkit-appearance:none; on the element, itself */
+/*
+.control-range::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:0.875rem;
+  height:0.875rem;
+  background:indianred;
+}
+*/
+
+.control-range-text {
+  width: 3.5rem;
+  margin: 0.175rem 0.25rem;
+  font-size: 80%;
+}
+
+.control-link {
+  margin: 0.25em 0.4em 0.25em 0.25em;
+  border: 0px;
+}
+
+.link-toggle {
+  position: relative;
+  display: inline-block;
+  width: 1.0em;
+  height: 1.0em;
+}
+/* Hide default HTML checkbox */
+.link-toggle input {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.link-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 2px;
+  background-color: #eee;
+  font-size: 75%;
+  cursor: pointer;
+}
+.link-text::before {
+  content: "";
+}
+input:checked + .link-text::before {
+  content: "🔗";
+}
+@media (hover: hover) and (pointer: fine) {
+  input:hover + .link-text {
+    border: 1px solid rgba(0,0,0,0.5);
+  }
+}
+input:focus-visible + .link-text {
+  border: 2px solid #000;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: row;
+  margin: 0;
+  padding: 0;
+  border: solid #000;
+  border-width: 0 0 0 0.2em;
+  border-width: 0.15em 0 0 0em;
+  border-width: 0;
+  border-color: #ddd;
+  width: 100%;
+}
+.control-group-label {
+  user-select: none;
+  -webkit-user-select: none;
+
+  margin: 0.25em 0 0.5em 0;
+  padding: 0 0 0 0.25em;
+
+  cursor: pointer;
+  font-size: 0.825em;
+  color: #999;
+}
+.control-group-label:hover {
+  color: #939393;
+  text-shadow: 0.333px 0.333px 0.05em;
+}
+
+.control-group-left {
+  user-select: none;
+  -webkit-user-select: none;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-right: 0.25em;
+  cursor: pointer;
+}
+.control-group-right {
+  width: 100%;
+}
+.control-group-toggle {
+  margin-top: 0.25em;
+  font-size: 0.825em;
+  color: #999;
+}
+.control-group-line {
+  padding: 0.15em;
+  width: 0.4em;
+  height: 100%;
+  background-color: #d7d7d7;
+  background-clip: content-box;
+}
+.control-group-main {
+  margin-left: 0.0em;
+  width: 100%;
+}
