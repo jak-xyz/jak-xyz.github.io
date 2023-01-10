@@ -19,8 +19,11 @@ if (typeof window === 'undefined') {
     self.addEventListener("fetch", function (event) {
         let request = event.request;
         let url = new URL(request.url);
-        if (url.pathname.endsWith('/index.html')) {
-            url.pathname = url.pathname.replace(/index.html$/, 'index-coi.html');
+        let endsWithSlash = url.pathname.endsWith('/');
+        let endsWithIndex = url.pathname.endsWith('/index.html');
+        if (endsWithSlash || endsWithIndex) {
+            if (endsWithSlash) { url.pathname += 'index-coi.html'; }
+            if (endsWithIndex) { url.pathname = url.pathname.replace(/index.html$/, 'index-coi.html'); }
             request = new Request(url.toString(), {
                         method: event.request.method,
                         headers: event.request.headers,
