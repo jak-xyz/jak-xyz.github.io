@@ -319,7 +319,7 @@
 							let textValue = parseFloat(this.text.value);
 							if (textValue < this.range.min) { this.text.value = textValue = this.range.min; }
 							if (textValue > this.range.max) { this.text.value = textValue = this.range.max; }
-							this.value = textValue;
+							this.value = parseFloat(textValue);
 							this.range.value = this.searchValueForRange(this.value);
 							if (this.onchange) { this.onchange(); }
 						});
