@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<title>Angular Momentum Demo</title>
+
+		<link type="text/css" rel="stylesheet" href="styles.css">
+		<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥏</text></svg>">
+	</head>
+	<body>
+		<div id="content"></div>
+		<div id="controls"></div>
+
+		<!-- Import maps polyfill -->
+		<!-- Remove this when import maps will be widely supported -->
+		<script async src="https://unpkg.com/es-module-shims@1.6.2/dist/es-module-shims.js"></script>
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "https://unpkg.com/three@0.146.0/build/three.module.js",
+					"OrbitControls": "https://unpkg.com/three@0.146.0/examples/jsm/controls/OrbitControls.js"
+				}
+			}
+		</script>
+
+		<script type="module">
+			import * as THREE from 'three';
+			import { OrbitControls } from 'OrbitControls';
+
+			//-----------------------------------------------------------------
+			// Globals and constants
+			//-----------------------------------------------------------------
+			var scene, renderer, camera, controls;
+			var windowWidth, windowHeight;
+
+			const contentElem = document.getElementById('content');
+			const controlsElem = document.getElementById('controls');
+
+			const GroundY = -2.0;
+			const LineThickness = 0.04;
+			const SphereRad = 0.09;
+
+			var timeScale = 1.0;
+			var motorTargetSpin = 0.0;
+			var motorTorque = 1.0;
+			var startingAngVel0 = 10.0;
+			var startingLength0 = 1.0;
+			var startingDensity0 = 1.0;
+			var startingAngVel1 = -10.0;
+			var startingLength1 = 1.0;
+			var startingDensity1 = 1.0;
+			var isPlaying = false;
+
+			//-----------------------------------------------------------------
+			// LineMeshWrapper class
+			//-----------------------------------------------------------------
+			const lineGeo = new THREE.CylinderGeometry(1.0, 1.0, 1.0, 31 );
+			lineGeo.translate(0.0, 0.5, 0.0);
+			const lineConeGeo = new THREE.ConeGeometry(1.0, 1.0, 31 );
+			lineConeGeo.translate(0.0, 0.5, 0.0);
+			lineConeGeo.scale(2.0, 1.0, 2.0);
+			class LineMeshWrapper {
+				constructor(thickenss, hasCone, material) {
+					this.thickness = thickenss;
+					this.lineMesh = new THREE.Mesh(lineGeo, material);
+					this.lineMesh.castShadow = true;
+					this.lineMesh.receiveShadow = true;
+					this.coneMesh = hasCone ? new THREE.Mesh(lineConeGeo, material) : null;
+					if (this.coneMesh) {
+						this.coneMesh.castShadow = true;
+						this.coneMesh.receiveShadow = true;
+					}
+				}
+				addToScene(scene) {
+					scene.add(this.lineMesh);
+					if (this.coneMesh) { scene.add(this.coneMesh); }
+				}
+				setVisible(visible) {
+					this.lineMesh.visible = visible;
+					if (this.coneMesh) { this.coneMesh.visible = visible; }
+				}
+				line(from, to) {
+					let Y = (new THREE.Vector3()).subVectors(to, from);
+					let X = Math.abs(Y.x) <= Math.abs(Y.y) && Math.abs(Y.x) <= Math.abs(Y.z) ?
+						new THREE.Vector3(1.0, 0.0, 0.0) : Math.abs(Y.y) <= Math.abs(Y.z) ?
+						new THREE.Vector3(0.0, 1.0, 0.0) : new THREE.Vector3(0.0, 0.0, 1.0);
+					let Z = (new THREE.Vector3()).crossVectors(X, Y).normalize();
+					X.crossVectors(Y, Z).normalize();
+					X.multiplyScalar(this.thickness);
+					Z.multiplyScalar(this.thickness);
+					if (!this.coneMesh) {
+						this.lineMesh.matrix.makeBasis(X, Y, Z);
+						this.lineMesh.matrix.setPosition(from);
+						this.lineMesh.matrixAutoUpdate = false;
+					} else {
+						let len = Y.length();
+						let coneLen = len > 6.0 * this.thickness ? 4.0 * this.thickness : (4.0 / 6.0 * len);
+						let lineLen = len - 0.9 * coneLen;
+						this.lineMesh.matrix.makeBasis(X, Y.normalize().multiplyScalar(lineLen), Z);
+						this.lineMesh.matrix.setPosition(from);
+						this.lineMesh.matrixAutoUpdate = false;
+						this.coneMesh.matrix.makeBasis(X, Y.normalize().multiplyScalar(coneLen), Z);
+						this.coneMesh.matrix.setPosition((new THREE.Vector3()).addVectors(from, Y.normalize().multiplyScalar(len - coneLen)));
+						this.coneMesh.matrixAutoUpdate = false;
+					}
+				}
+				vec(origin, dir) {
+					this.line(origin, (new THREE.Vector3()).addVectors(origin, dir));
+				}
+			}
+
+			//-----------------------------------------------------------------
+			// SphereMeshWrapper class
+			//-----------------------------------------------------------------
+			const sphereGeo = new THREE.SphereGeometry(1.0, 32, 16);
+			class SphereMeshWrapper {
+				constructor(X0, radius, material) {
+					this.X = X0.clone();
+
+					this.mesh = new THREE.Mesh(sphereGeo, material);
+					this.mesh.position.copy(this.X);
+					this.mesh.scale.set(radius, radius, radius);
+					this.mesh.castShadow = true;
+					this.mesh.receiveShadow  = true;
+				}
+				addToScene(scene) {
+					scene.add(this.mesh);
+				}
+				setVisible(visible) {
+					this.mesh.visible = visible;
+				}
+				updateMesh() {
+					this.mesh.position.copy(this.X);
+				}
+			}
+
+			//-----------------------------------------------------------------
+			// LineRigidBody
+			//-----------------------------------------------------------------
+			class LineRigidBody {
+				constructor(X0, r, len, material) {
+					this.X = X0.clone();
+					this.XO = this.X.clone();
+					this.XV = new THREE.Vector3(0.0, 0.0, 0.0);
+					this.r = r;
+					this.rO = this.r;
+					this.rV = 0.0;
+					this.len = len;
+
+					this.m = 1.0 * this.len;
+					this.I = 1.0 / 12.0 * this.m * this.len * this.len;
+
+					this.mesh = new LineMeshWrapper(LineThickness, false, material);
+				}
+				addToScene(scene) {
+					this.mesh.addToScene(scene);
+				}
+				setVisible(visible) {
+					this.mesh.setVisible(visible);
+				}
+				updateMeshes(particles) {
+					let X = new THREE.Vector3(Math.cos(this.r), Math.sin(this.r), 0.0);
+					let from = this.X.clone().addScaledVector(X, -0.5 * this.len);
+					let to = this.X.clone().addScaledVector(X, 0.5 * this.len);
+					this.mesh.line(from, to);
+				}
+			}
+
+			//-----------------------------------------------------------------
+			// Constraint class
+			//-----------------------------------------------------------------
+			class Constraint {
+				constructor(lineThickness, material) {
+					this.i0 = 0;
+					this.i1 = 1;
+					this.dist = 0.0;
+					this.line = new LineMeshWrapper(lineThickness, false, material);
+				}
+				setIdxs(particles, i0, i1) {
+					this.i0 = i0;
+					this.i1 = i1;
+					this.dist = particles[i0].X.distanceTo(particles[i1].X);
+				}
+				constrain(particles) {
+					let p0 = particles[this.i0];
+					let p1 = particles[this.i1];
+
+					let to = new THREE.Vector3().subVectors(p1.X, p0.X);
+					let len = to.length();
+					let N = to.clone().multiplyScalar(1.0 / Math.max(0.0000001, len));
+
+					let C = len - this.dist;
+					let lambda = -C / (1.0 / p0.m + 1.0 / p1.m);
+					p0.X.addScaledVector(N, -lambda / p0.m);
+					p1.X.addScaledVector(N, lambda / p1.m);
+				}
+				addToScene(scene) {
+					this.line.addToScene(scene);
+				}
+				setVisible(visible) {
+					this.line.setVisible(visible);
+				}
+				updateMeshes(particles) {
+					let p0 = particles[this.i0];
+					let p1 = particles[this.i1];
+
+					let to = new THREE.Vector3().subVectors(p1.X, p0.X);
+					let len = to.length();
+					let N = to.clone().multiplyScalar(1.0 / Math.max(0.0000001, len));
+
+					let lineStart = new THREE.Vector3().addVectors(p0.X, p1.X).multiplyScalar(0.5).addScaledVector(N, -0.5 * this.dist);
+					this.line.vec(lineStart, N.clone().multiplyScalar(this.dist));
+				}
+			}
+
+			//-----------------------------------------------------------------
+			// Globals
+			//-----------------------------------------------------------------
+			var bodies = [];
+			var constraints = [];
+
+			//-----------------------------------------------------------------
+			// App functions
+			//-----------------------------------------------------------------
+			init();
+			animate();
+
+			function init() {
+				scene = new THREE.Scene();
+
+				// Camera
+				camera = new THREE.PerspectiveCamera(45.0, window.innerWidth / window.innerHeight, 0.1, 300);
+				camera.position.set(0.0, 1.0, 8.0);
+				camera.up.set(0.0, 1.0, 0.0);
+				camera.lookAt(new THREE.Vector3(0.0, 0.0, 0.0));
+
+				// Create a DirectionalLight and turn on shadows for the light
+				const light = new THREE.DirectionalLight(0xffffff, 3.0);
+				light.position.set( -6, 20, -6 );
+				light.castShadow = true;
+				scene.add(light);
+				// Set up shadow properties for the light
+				light.shadow.bias = 0.00005;
+				light.shadow.mapSize.width = 2 * 1024;
+				light.shadow.mapSize.height = 2 * 1024;
+				light.shadow.camera.left = -5.0;
+				light.shadow.camera.bottom = -5.0;
+				light.shadow.camera.right = 5.0;
+				light.shadow.camera.top = 5.0;
+				light.shadow.camera.near = 0.01;
+				light.shadow.camera.far = 100;
+				// Create a helper for the shadow camera (optional)
+				// const helper = new THREE.CameraHelper(light.shadow.camera);
+				// scene.add(helper);
+
+				// Ambient light
+				const ambientLight = new THREE.HemisphereLight(0x88bbff, 0x779966, 0.6);
+				scene.add(ambientLight);
+
+				// Ground mesh
+				const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x062206, roughness: 0.5 });
+				const groundGeo = new THREE.PlaneGeometry(300.0, 300.0, 10, 10);
+				let groundMesh = new THREE.Mesh(groundGeo, groundMaterial);
+				groundMesh.position.y = GroundY;
+				groundMesh.rotation.x = -Math.PI / 2;
+				groundMesh.receiveShadow = true;
+				scene.add(groundMesh);
+
+				// Line rigid bodies
+				const body0Material = new THREE.MeshStandardMaterial({ color: 0xcc9922, roughness: 0.25 });
+				const body1Material = new THREE.MeshStandardMaterial({ color: 0x1e44aa, roughness: 0.25 });
+				bodies = [];
+				for (let i = 0; i < 2; i++) {
+					bodies[i] = new LineRigidBody(new THREE.Vector3(0.0, 0.0, 0.0), 0.0, 1.0, i == 0 ? body0Material : body1Material);
+					bodies[i].addToScene(scene);
+				}
+
+				// Constraints
+				const constraintMaterial = new THREE.MeshStandardMaterial({ color: 0x99bbdd, roughness: 0.25 });
+				constraints = [];
+				for (let i = 0; i < 0; i++) {
+					constraints[i] = new Constraint(0.015, constraintMaterial);
+					constraints[i].addToScene(scene);
+				}
+
+				// Renderer
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setClearColor(new THREE.Color(0.5, 0.7, 0.9));
+				renderer.shadowMap.enabled = true;
+				renderer.shadowMap.type = THREE.PCFShadowMap; 
+				renderer.toneMapping = THREE.ACESFilmicToneMapping;
+				renderer.toneMappingExposure = 1.0;
+				renderer.setPixelRatio(window.devicePixelRatio);
+				renderer.setSize(contentElem.clientWidth, contentElem.clientHeight);
+				contentElem.appendChild(renderer.domElement);
+
+				// Camera controls
+				controls = new OrbitControls(camera, renderer.domElement);
+				controls.enableDamping = true;
+				controls.maxPolarAngle = 0.55 * Math.PI;
+				controls.enablePan = false;
+				controls.minDistance = 3.0;
+				controls.maxDistance = 12.0;
+
+				//-------------------------------------------------------------
+				// Other controls
+
+				//-------------------------------------------------------------
+				// General DOM manipulation helpers
+				function addElement(parentElement, type, className) {
+					let element = document.createElement(type);
+					if (className) {
+						element.className = className;
+					}
+					parentElement.appendChild(element);
+					return element;
+				}
+				function addLabel(parentElement, className, text) {
+					let label = addElement(parentElement, 'label', className);
+					label.innerHTML = text;
+					return label;
+				}
+				function addInput(parentElement, className, type) {
+					let input = addElement(parentElement, 'input', className);
+					input.type = type;
+					return input;
+				}
+
+				class RangeWithTextFieldControl {
+					constructor(parentElement, name, initial, min, max, step, rangeToTextValueFn) {
+						this.name = name;
+						this.value = initial;
+						this.onchange = null;
+
+						this.rootElement = addElement(parentElement, 'div', 'control-input-slider');
+						let label0 = addLabel(this.rootElement, 'control-input-slider', '');
+						this.range = addInput(label0, 'control-range', 'range');
+						this.range.min = min;
+						this.range.max = max;
+						this.range.step = step || 'any';
+						this.range.value = this.value;
+						let label1 = addLabel(this.rootElement, '', '');
+						this.text = addInput(label1, 'control-range-text', 'text');
+						this.text.value = rangeToTextValueFn(this.value);
+
+						this.formatValueForText = (value) => {
+							const SIG_FIG = 3;
+
+							if (Math.abs(value) < 0.00001) { return '0'; } // Text box can't display really small values, anyway
+
+							let optionalMinus = value < 0 ? '-' : '';
+							value = Math.abs(value);
+
+							let leftDigit = Math.floor(Math.log10(value));
+							let figs = Math.round(value / 10.0 ** (leftDigit - SIG_FIG + 1));
+							if (leftDigit >= SIG_FIG - 1) {
+								// No significant figures to the right of the decimal point
+								return optionalMinus + figs.toString() + '0'.repeat(leftDigit - (SIG_FIG - 1));
+							} else {
+								// At least some sig figs to the right of the decimal point
+								let fixed = (figs * 10.0 ** (leftDigit - SIG_FIG + 1)).toFixed(-leftDigit + SIG_FIG - 1);
+								let chopped = fixed.replace(/\.?0+$/, ''); // Remove trailing zeroes and '.'
+								return optionalMinus + chopped;
+							}
+						};
+						this.searchValueForRange = (value) => {
+							let low = min;
+							let high = max;
+							let guess = 0.5 * (low + high);
+							for (let itr = 0; itr < 32; itr++) {
+								let guessVal = parseFloat(rangeToTextValueFn(guess));
+								if (value < guessVal) {
+									high = guess;
+								} else if (value > guessVal) {
+									low = guess;
+								} else {
+									break;
+				                }
+								guess = 0.5 * (low + high);
+							}
+							return guess;
+						};
+						this.range.addEventListener('input', () => {
+							let value = rangeToTextValueFn(this.range.value);
+							this.text.value = this.formatValueForText(value);
+							this.value = parseFloat(this.text.value);
+							if (this.onchange) { this.onchange(); }
+						});
+						this.text.addEventListener('change', () => {
+							let isNumeric = !isNaN(this.text.value) && !isNaN(parseFloat(this.text.value));
+							if (!isNumeric) { return; }
+							let textValue = parseFloat(this.text.value);
+							if (textValue < this.range.min) { this.text.value = textValue = this.range.min; }
+							if (textValue > this.range.max) { this.text.value = textValue = this.range.max; }
+							this.value = textValue;
+							this.range.value = this.searchValueForRange(this.value);
+							if (this.onchange) { this.onchange(); }
+						});
+					}
+				}
+				class ButtonControl {
+					constructor(parentElement, buttonLabel, onclick) {
+						this.onchange = null;
+
+						// this.rootElement = addElement(parentElement, 'div', 'control-input-bag');
+						// let row = addElement(this.rootElement, 'div', 'control-input-bag-row');
+						let row = parentElement;
+						let buttonLabelElement = addLabel(row, 'control-input-button', '');
+						this.rootElement = buttonLabelElement;
+						this.buttonElement = addInput(buttonLabelElement, 'control-input-button', 'button');
+						this.buttonElement.value = buttonLabel;
+						this.buttonElement.addEventListener('click', () => { onclick(); });
+					}
+				}
+				function addRangeWithTextField(parentElement, label, initial, min, max, step, rangeToTextValueFn) {
+					let row = addElement(parentElement, 'div', 'control-row');
+					let labelNode = addElement(row, 'div', 'control-label');
+					labelNode.innerHTML = `${label}:`;
+					let inputArea = addElement(row, 'div', 'control-input-area');
+					inputArea.id = label+'-input-area';
+					let ctrl = new RangeWithTextFieldControl(inputArea, label, initial, min, max, step, rangeToTextValueFn);
+					//ctrl.loadFromContainer(containers[0]);
+					return ctrl;
+				}
+
+				function resetPlayButton() { isPlaying = false; playButton.buttonElement.value = 'Play'; }
+
+				addRangeWithTextField(controlsElem, 'Time Scale', timeScale, 0.0, 10.0, 0.0, (x)=>x).onchange = function() { timeScale = this.value; };
+				addRangeWithTextField(controlsElem, 'Left Spin', startingAngVel0, -50.0, 50.0, 0.0, (x)=>x).onchange = function() { startingAngVel0 = this.value; };
+				addRangeWithTextField(controlsElem, 'Left Length', startingLength0, 0.0001, 4.0, 0.0, (x)=>x).onchange = function() { startingLength0 = this.value; };
+				addRangeWithTextField(controlsElem, 'Left Density', startingDensity0, 0.0001, 10.0, 0.0, (x)=>x).onchange = function() { startingDensity0 = this.value; };
+				addRangeWithTextField(controlsElem, 'Right Spin', startingAngVel1, -50.0, 50.0, 0.0, (x)=>x).onchange = function() { startingAngVel1 = this.value; };
+				addRangeWithTextField(controlsElem, 'Right Length', startingLength1, 0.0001, 4.0, 0.0, (x)=>x).onchange = function() { startingLength1 = this.value; };
+				addRangeWithTextField(controlsElem, 'Right Density', startingDensity1, 0.0001, 10.0, 0.0, (x)=>x).onchange = function() { startingDensity1 = this.value; };
+
+				let buttonRow = addElement(controlsElem, 'div', 'control-row');
+				let playButton = new ButtonControl(buttonRow, 'Play', () => {
+					isPlaying = !isPlaying;
+					playButton.buttonElement.value = isPlaying ? 'Reset' : 'Play';
+				});
+				// let expandButton = new ButtonControl(buttonRow, 'Expand', () => {
+				// 	manipulate(1.25, 0.0);
+				// });
+			}
+
+			function updateSize() {
+				let computedStyle = getComputedStyle(contentElem);
+				let width = contentElem.clientWidth - (parseFloat(computedStyle.paddingLeft) + parseFloat(computedStyle.paddingRight));   // width with padding
+				let height = width;//canvas.parentElement.clientHeight;
+
+				if (windowWidth != width || windowHeight != height) {
+					windowWidth = width;
+					windowHeight = height;
+					renderer.setSize(windowWidth, windowHeight, true);
+					camera.aspect = windowWidth / windowHeight;
+					camera.updateProjectionMatrix();
+				}
+			}
+
+			var oldTimestamp = 0.0;
+			var dtAccum = 0.0;
+			function animate(timestamp) {
+				let deltaTime = oldTimestamp == 0.0 ? (1.0 / 60.0) : (0.001 * (timestamp - oldTimestamp));
+				oldTimestamp = timestamp;
+
+				if (!isPlaying) {
+					// Set up the initial state of the rigid bodies
+					for (let i = 0; i < bodies.length; i++) {
+						let x = (i == 0 ? -0.5 : 0.5) * bodies[i].len;
+						bodies[i].X = new THREE.Vector3(x, 0.0, 0.0);
+						bodies[i].XO = (new THREE.Vector3()).copy(bodies[i].X);
+						bodies[i].XV = new THREE.Vector3(0.0, 0.0, 0.0);
+						bodies[i].r = 0.0;
+						bodies[i].rO = bodies[i].r;
+						bodies[i].rV = i == 0 ? 10.0 : -10.0;
+					}
+
+					let b0 = bodies[0];
+					let b1 = bodies[1];
+					b0.rV = startingAngVel0;
+					b0.len = startingLength0;
+					b0.m = startingDensity0 * b0.len;
+					b0.I = 1.0 / 12.0 * b0.m * b0.len * b0.len;
+					b1.rV = startingAngVel1;
+					b1.len = startingLength1;
+					b1.m = startingDensity1 * b1.len;
+					b1.I = 1.0 / 12.0 * b1.m * b1.len * b1.len;
+				} else {
+					// Calculate how many substeps we need to take this frame
+					const substepsPerSecond = 5000.0;
+					// dtAccum = Math.min(dtAccum + deltaTime, (1.0 / 30.0));
+					dtAccum = Math.min(dtAccum + timeScale * deltaTime, timeScale * (1.0 / 30.0));
+					let substeps = Math.floor(dtAccum * substepsPerSecond);
+					dtAccum -= substeps / substepsPerSecond;
+
+					// Perform substeps
+					let dt = 1.0 / substepsPerSecond;
+					for (let substep = 0; substep < substeps; substep++) {
+						// Predict
+						for (let i = 0; i < bodies.length; i++) {
+							let b = bodies[i];
+							b.XO.copy(b.X);
+							// b.XV.y -= gravity * dt;
+							b.X.addScaledVector(b.XV, dt);
+							b.rO = b.r;
+							b.rV *= 0.999;
+							b.r += b.rV * dt;
+							if (b.r < -Math.PI) { b.r += 2.0 * Math.PI; b.rO += 2.0 * Math.PI; }
+							if (b.r >= Math.PI) { b.r -= 2.0 * Math.PI; b.rO -= 2.0 * Math.PI; }
+						}
+
+						// Constrain
+						function cross2D(a, b) {
+							return a.x * b.y - a.y * b.x;
+						}
+						let b0 = bodies[0];
+						let b1 = bodies[1];
+						// Motor
+						let torque = 1.0;
+						let I0 = (1.0 / 3.0) * b0.m * b0.len * b0.len;
+						let I1 = (1.0 / 3.0) * b1.m * b1.len * b1.len;
+						b0.r += dt * dt / I0 * torque;
+						b1.r -= dt * dt / I1 * torque;
+						// Joint
+						let r0 = new THREE.Vector3(Math.cos(b0.r), Math.sin(b0.r), 0.0).multiplyScalar(0.5 * b0.len);
+						let r1 = new THREE.Vector3(Math.cos(b1.r), Math.sin(b1.r), 0.0).multiplyScalar(-0.5 * b1.len);
+						let dX = b0.X.clone().add(r0).sub(b1.X.clone().add(r1));
+						let N = dX.clone().normalize();
+						let w0 = 1.0 / b0.m + cross2D(r0, N) / b0.I * cross2D(r0, N);
+						let w1 = 1.0 / b1.m + cross2D(r1, N) / b1.I * cross2D(r1, N);
+						let C = dX.length();
+						let dlambda = -C / (w0 + w1);
+						let p = N.clone().multiplyScalar(dlambda);
+						b0.X.addScaledVector(p, 1.0 / b0.m);
+						b1.X.addScaledVector(p, -1.0 / b1.m);
+						b0.r += (1.0 / b0.I) * cross2D(r0, p);
+						b1.r -= (1.0 / b1.I) * cross2D(r1, p);
+
+						// Update velocity
+						for (let i = 0; i < bodies.length; i++) {
+							let b = bodies[i];
+							b.XV.copy(b.X).sub(b.XO).multiplyScalar(1.0 / dt);
+							b.rV = (b.r - b.rO) * (1.0 / dt);
+						}
+					}
+				}
+
+				for (let b of bodies) {
+					b.updateMeshes();
+				}
+				// for (let c of constraints) {
+				// 	c.updateMeshes(particles);
+				// }
+
+				render();
+
+				requestAnimationFrame(animate);
+			}
+
+			function render() {
+				updateSize();
+
+				controls.update();
+
+				renderer.render( scene, camera );
+			}
+		</script>
+	</body>
+</html>
