@@ -7,12 +7,16 @@
 		<title>Angular Momentum Demo</title>
 
 		<link type="text/css" rel="stylesheet" href="styles.css">
-		<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥏</text></svg>">
+		<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💫</text></svg>">
 	</head>
 	<body>
 		<div id="content"></div>
 		<div id="controls"></div>
-
+		<div id="info" style="display: flex; justify-content: center; align-items: center;">
+			<div style="color:#cc9922">ω=<span id="ang-vel-0"></span></div>
+			<div>&emsp;</div>
+			<div style="color:#1e44aa">ω=<span id="ang-vel-1"></span></div>
+		</div>
 		<!-- Import maps polyfill -->
 		<!-- Remove this when import maps will be widely supported -->
 		<script async src="https://unpkg.com/es-module-shims@1.6.2/dist/es-module-shims.js"></script>
@@ -37,20 +41,22 @@
 
 			const contentElem = document.getElementById('content');
 			const controlsElem = document.getElementById('controls');
+			const angVel0Elem = document.getElementById('ang-vel-0');
+			const angVel1Elem = document.getElementById('ang-vel-1');
 
 			const GroundY = -2.0;
 			const LineThickness = 0.04;
-			const SphereRad = 0.09;
 
 			var timeScale = 1.0;
+			var stepsPerSecond = 600.0;
 			var motorTargetSpin = 0.0;
-			var motorTorque = 1.0;
+			var motorTorque = 0.0;
 			var startingAngVel0 = 10.0;
-			var startingLength0 = 1.0;
-			var startingDensity0 = 1.0;
+			var bodyLength0 = 1.0;
+			var bodyDensity0 = 1.0;
 			var startingAngVel1 = -10.0;
-			var startingLength1 = 1.0;
-			var startingDensity1 = 1.0;
+			var bodyLength1 = 1.0;
+			var bodyDensity1 = 1.0;
 			var isPlaying = false;
 
 			//-----------------------------------------------------------------
@@ -112,31 +118,6 @@
 			}
 
 			//-----------------------------------------------------------------
-			// SphereMeshWrapper class
-			//-----------------------------------------------------------------
-			const sphereGeo = new THREE.SphereGeometry(1.0, 32, 16);
-			class SphereMeshWrapper {
-				constructor(X0, radius, material) {
-					this.X = X0.clone();
-
-					this.mesh = new THREE.Mesh(sphereGeo, material);
-					this.mesh.position.copy(this.X);
-					this.mesh.scale.set(radius, radius, radius);
-					this.mesh.castShadow = true;
-					this.mesh.receiveShadow  = true;
-				}
-				addToScene(scene) {
-					scene.add(this.mesh);
-				}
-				setVisible(visible) {
-					this.mesh.visible = visible;
-				}
-				updateMesh() {
-					this.mesh.position.copy(this.X);
-				}
-			}
-
-			//-----------------------------------------------------------------
 			// LineRigidBody
 			//-----------------------------------------------------------------
 			class LineRigidBody {
@@ -169,57 +150,9 @@
 			}
 
 			//-----------------------------------------------------------------
-			// Constraint class
-			//-----------------------------------------------------------------
-			class Constraint {
-				constructor(lineThickness, material) {
-					this.i0 = 0;
-					this.i1 = 1;
-					this.dist = 0.0;
-					this.line = new LineMeshWrapper(lineThickness, false, material);
-				}
-				setIdxs(particles, i0, i1) {
-					this.i0 = i0;
-					this.i1 = i1;
-					this.dist = particles[i0].X.distanceTo(particles[i1].X);
-				}
-				constrain(particles) {
-					let p0 = particles[this.i0];
-					let p1 = particles[this.i1];
-
-					let to = new THREE.Vector3().subVectors(p1.X, p0.X);
-					let len = to.length();
-					let N = to.clone().multiplyScalar(1.0 / Math.max(0.0000001, len));
-
-					let C = len - this.dist;
-					let lambda = -C / (1.0 / p0.m + 1.0 / p1.m);
-					p0.X.addScaledVector(N, -lambda / p0.m);
-					p1.X.addScaledVector(N, lambda / p1.m);
-				}
-				addToScene(scene) {
-					this.line.addToScene(scene);
-				}
-				setVisible(visible) {
-					this.line.setVisible(visible);
-				}
-				updateMeshes(particles) {
-					let p0 = particles[this.i0];
-					let p1 = particles[this.i1];
-
-					let to = new THREE.Vector3().subVectors(p1.X, p0.X);
-					let len = to.length();
-					let N = to.clone().multiplyScalar(1.0 / Math.max(0.0000001, len));
-
-					let lineStart = new THREE.Vector3().addVectors(p0.X, p1.X).multiplyScalar(0.5).addScaledVector(N, -0.5 * this.dist);
-					this.line.vec(lineStart, N.clone().multiplyScalar(this.dist));
-				}
-			}
-
-			//-----------------------------------------------------------------
 			// Globals
 			//-----------------------------------------------------------------
 			var bodies = [];
-			var constraints = [];
 
 			//-----------------------------------------------------------------
 			// App functions
@@ -275,14 +208,6 @@
 				for (let i = 0; i < 2; i++) {
 					bodies[i] = new LineRigidBody(new THREE.Vector3(0.0, 0.0, 0.0), 0.0, 1.0, i == 0 ? body0Material : body1Material);
 					bodies[i].addToScene(scene);
-				}
-
-				// Constraints
-				const constraintMaterial = new THREE.MeshStandardMaterial({ color: 0x99bbdd, roughness: 0.25 });
-				constraints = [];
-				for (let i = 0; i < 0; i++) {
-					constraints[i] = new Constraint(0.015, constraintMaterial);
-					constraints[i].addToScene(scene);
 				}
 
 				// Renderer
@@ -428,21 +353,21 @@
 				function resetPlayButton() { isPlaying = false; playButton.buttonElement.value = 'Play'; }
 
 				addRangeWithTextField(controlsElem, 'Time Scale', timeScale, 0.0, 10.0, 0.0, (x)=>x).onchange = function() { timeScale = this.value; };
-				addRangeWithTextField(controlsElem, 'Left Spin', startingAngVel0, -50.0, 50.0, 0.0, (x)=>x).onchange = function() { startingAngVel0 = this.value; };
-				addRangeWithTextField(controlsElem, 'Left Length', startingLength0, 0.0001, 4.0, 0.0, (x)=>x).onchange = function() { startingLength0 = this.value; };
-				addRangeWithTextField(controlsElem, 'Left Density', startingDensity0, 0.0001, 10.0, 0.0, (x)=>x).onchange = function() { startingDensity0 = this.value; };
-				addRangeWithTextField(controlsElem, 'Right Spin', startingAngVel1, -50.0, 50.0, 0.0, (x)=>x).onchange = function() { startingAngVel1 = this.value; };
-				addRangeWithTextField(controlsElem, 'Right Length', startingLength1, 0.0001, 4.0, 0.0, (x)=>x).onchange = function() { startingLength1 = this.value; };
-				addRangeWithTextField(controlsElem, 'Right Density', startingDensity1, 0.0001, 10.0, 0.0, (x)=>x).onchange = function() { startingDensity1 = this.value; };
+				addRangeWithTextField(controlsElem, 'Steps/Second', stepsPerSecond, 30.0, 5000.0, 0.0, (x)=>x).onchange = function() { stepsPerSecond = this.value; };
+				addRangeWithTextField(controlsElem, 'Motor Spin', motorTargetSpin, -50.0, 50.0, 0.0, (x)=>x).onchange = function() { motorTargetSpin = this.value; };
+				addRangeWithTextField(controlsElem, 'Motor Torque', motorTorque, 0.0, 100.0, 0.0, (x)=>x).onchange = function() { motorTorque = this.value; };
+				addRangeWithTextField(controlsElem, 'Gold Spin<sub>0</sub>', startingAngVel0, -50.0, 50.0, 0.0, (x)=>x).onchange = function() { startingAngVel0 = this.value; };
+				addRangeWithTextField(controlsElem, 'Gold Length', bodyLength0, 0.0001, 4.0, 0.0, (x)=>x).onchange = function() { bodyLength0 = this.value; };
+				addRangeWithTextField(controlsElem, 'Gold Density', bodyDensity0, 0.0001, 10.0, 0.0, (x)=>x).onchange = function() { bodyDensity0 = this.value; };
+				addRangeWithTextField(controlsElem, 'Blue Spin<sub>0</sub>', startingAngVel1, -50.0, 50.0, 0.0, (x)=>x).onchange = function() { startingAngVel1 = this.value; };
+				addRangeWithTextField(controlsElem, 'Blue Length', bodyLength1, 0.0001, 4.0, 0.0, (x)=>x).onchange = function() { bodyLength1 = this.value; };
+				addRangeWithTextField(controlsElem, 'Blue Density', bodyDensity1, 0.0001, 10.0, 0.0, (x)=>x).onchange = function() { bodyDensity1 = this.value; };
 
 				let buttonRow = addElement(controlsElem, 'div', 'control-row');
 				let playButton = new ButtonControl(buttonRow, 'Play', () => {
 					isPlaying = !isPlaying;
 					playButton.buttonElement.value = isPlaying ? 'Reset' : 'Play';
 				});
-				// let expandButton = new ButtonControl(buttonRow, 'Expand', () => {
-				// 	manipulate(1.25, 0.0);
-				// });
 			}
 
 			function updateSize() {
@@ -465,38 +390,36 @@
 				let deltaTime = oldTimestamp == 0.0 ? (1.0 / 60.0) : (0.001 * (timestamp - oldTimestamp));
 				oldTimestamp = timestamp;
 
+				let b0 = bodies[0];
+				let b1 = bodies[1];
+
+				b0.len = bodyLength0;
+				b0.m = bodyDensity0 * b0.len;
+				b0.I = 1.0 / 12.0 * b0.m * b0.len * b0.len;
+				b1.len = bodyLength1;
+				b1.m = bodyDensity1 * b1.len;
+				b1.I = 1.0 / 12.0 * b1.m * b1.len * b1.len;
+
 				if (!isPlaying) {
 					// Set up the initial state of the rigid bodies
 					for (let i = 0; i < bodies.length; i++) {
 						let x = (i == 0 ? -0.5 : 0.5) * bodies[i].len;
 						bodies[i].X = new THREE.Vector3(x, 0.0, 0.0);
-						bodies[i].XO = (new THREE.Vector3()).copy(bodies[i].X);
+						bodies[i].XO = bodies[i].X.clone();
 						bodies[i].XV = new THREE.Vector3(0.0, 0.0, 0.0);
 						bodies[i].r = 0.0;
 						bodies[i].rO = bodies[i].r;
-						bodies[i].rV = i == 0 ? 10.0 : -10.0;
 					}
-
-					let b0 = bodies[0];
-					let b1 = bodies[1];
 					b0.rV = startingAngVel0;
-					b0.len = startingLength0;
-					b0.m = startingDensity0 * b0.len;
-					b0.I = 1.0 / 12.0 * b0.m * b0.len * b0.len;
 					b1.rV = startingAngVel1;
-					b1.len = startingLength1;
-					b1.m = startingDensity1 * b1.len;
-					b1.I = 1.0 / 12.0 * b1.m * b1.len * b1.len;
 				} else {
 					// Calculate how many substeps we need to take this frame
-					const substepsPerSecond = 5000.0;
-					// dtAccum = Math.min(dtAccum + deltaTime, (1.0 / 30.0));
-					dtAccum = Math.min(dtAccum + timeScale * deltaTime, timeScale * (1.0 / 30.0));
-					let substeps = Math.floor(dtAccum * substepsPerSecond);
-					dtAccum -= substeps / substepsPerSecond;
+					dtAccum += Math.min(timeScale * deltaTime, timeScale * (1.0 / 30.0));
+					let substeps = Math.floor(dtAccum * stepsPerSecond);
+					dtAccum -= substeps / stepsPerSecond;
 
 					// Perform substeps
-					let dt = 1.0 / substepsPerSecond;
+					let dt = 1.0 / stepsPerSecond;
 					for (let substep = 0; substep < substeps; substep++) {
 						// Predict
 						for (let i = 0; i < bodies.length; i++) {
@@ -505,7 +428,6 @@
 							// b.XV.y -= gravity * dt;
 							b.X.addScaledVector(b.XV, dt);
 							b.rO = b.r;
-							b.rV *= 0.999;
 							b.r += b.rV * dt;
 							if (b.r < -Math.PI) { b.r += 2.0 * Math.PI; b.rO += 2.0 * Math.PI; }
 							if (b.r >= Math.PI) { b.r -= 2.0 * Math.PI; b.rO -= 2.0 * Math.PI; }
@@ -518,9 +440,11 @@
 						let b0 = bodies[0];
 						let b1 = bodies[1];
 						// Motor
-						let torque = 1.0;
-						let I0 = (1.0 / 3.0) * b0.m * b0.len * b0.len;
+						let I0 = (1.0 / 3.0) * b0.m * b0.len * b0.len; // Moment of inertia at motor
 						let I1 = (1.0 / 3.0) * b1.m * b1.len * b1.len;
+						let target_dr = (dt * motorTargetSpin) - ((b0.r - b0.rO) - (b1.r - b1.rO));
+						let torque = target_dr / (dt * dt * (1.0 / I0 + 1.0 / I1));
+						torque = Math.sign(torque) * Math.min(Math.abs(torque), motorTorque);
 						b0.r += dt * dt / I0 * torque;
 						b1.r -= dt * dt / I1 * torque;
 						// Joint
@@ -550,9 +474,11 @@
 				for (let b of bodies) {
 					b.updateMeshes();
 				}
-				// for (let c of constraints) {
-				// 	c.updateMeshes(particles);
-				// }
+
+				// Display the angular velocities of the two rigid bodies
+				function angVelToText(a) { if (Math.abs(a) < 0.01) { a = 0.0; } return a.toFixed(2); }
+				angVel0Elem.textContent = angVelToText(b0.rV);
+				angVel1Elem.textContent = angVelToText(b1.rV);
 
 				render();
 
