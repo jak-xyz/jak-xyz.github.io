@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+
+    <title>Multi-Step</title>
+
+	<!--
+    <link rel="stylesheet" href="styles.css">
+	-->
+
+    <meta name="description" content="Multi-Step">
+    <meta property="og:title" content="Multi-Step">
+    <meta property="og:description" content="Multi-Step">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://jak-xyz.github.io/multi-steps/index.html">
+    <link rel="canonical" href="https://jak-xyz.github.io/multi-steps/index.html">
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧪</text></svg>">
+	<!--
+    <link rel="manifest" href="/my.webmanifest">
+	-->
+    <meta name="theme-color" content="#FFFFFF">
+
+    <style media = "all">
+        html { box-sizing: border-box; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { -webkit-font-smoothing: antialiased; }
+        input, button, textarea, select { font: inherit; }
+
+        body {
+          height: 100%;
+          width: 100%;
+          margin: 0;
+          background: #fff;
+          color: #000;
+          font-family: Arial,sans-serif !important;
+          -webkit-text-size-adjust: 100%;
+        }
+        @media screen and (min-width: 657px) {
+          html, select, button { font-size: 16px; }
+          button { font-size: 14px; }
+        }
+        @media screen and (max-width: 656px) {
+          html, select, button { font-size: 2.43902439vw; }
+          //button { font-size: 2.13414634vw; }
+        }
+
+        div {
+          display: block;
+        }
+
+        #content {
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          user-select: none;
+          -webkit-user-select: none;
+          margin: 0.5rem;
+        }
+        #controls, #controls * {
+          text-align: center;
+          color: #444;
+          margin: 0.5em auto;
+        }
+    </style>
+</head>
+
+<body style="background-color:#FFF">
+    <div id="content">
+    </div>
+    <div id="controls">
+        <button onclick="mode = 0; modeOld = -1;">Dist, α=0</button>
+        <button onclick="mode = 1; modeOld = -1;">Dist, α=1</button>
+        <button onclick="mode = 2; modeOld = -1;">Shape, H</button>
+        <button onclick="mode = 3; modeOld = -1;">Shape, V</button>
+        <br />
+        <label>Render Sub-Interval: <input type="checkbox" onchange="settings.renderSubInterval = this.checked;" />
+    </div>
+    <script src="input.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
